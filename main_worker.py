@@ -125,20 +125,32 @@ def main():
                                     try: os.remove(screenshot)
                                     except: pass
                             else:
-                                print("[X] Flow failed (SMS not found or logic error)")
+                                print("[DEBUG] Entering failed flow handling...", flush=True)
+                                print("[X] Flow failed (SMS not found or logic error)", flush=True)
                                 logs.append(log_entry("❌ Flow failed - SMS not found or verify error"))
                                 
                                 # Get last screenshot for failed cases
                                 screenshot = None
                                 try:
+                                    print("[DEBUG] Finding last screenshot...", flush=True)
                                     files = os.listdir('.')
                                     shots = sorted([f for f in files if f.startswith('step_')], reverse=True)
                                     if shots: screenshot = shots[0]
-                                except: pass
+                                    print(f"[DEBUG] Found screenshot: {screenshot}", flush=True)
+                                except Exception as e:
+                                    print(f"[DEBUG] Screenshot find error: {e}", flush=True)
                                 
-                                print(f"[*] Updating status to failed with screenshot: {screenshot}")
-                                worker.update_status(doc_id, "failed", error_reason="FLOW_FAILED", screenshot_path=screenshot, logs="\n".join(logs))
-                                print("[*] Status updated to failed!")
+                                print(f"[*] Updating status to failed with screenshot: {screenshot}", flush=True)
+                                try:
+                                    worker.update_status(doc_id, "failed", error_reason="FLOW_FAILED", screenshot_path=screenshot, logs="\n".join(logs))
+                                    print("[*] Status updated to failed!", flush=True)
+                                except Exception as e:
+                                    print(f"[FATAL] Status update CRASHED: {e}", flush=True)
+                                
+                                if screenshot: 
+                                    try: os.remove(screenshot)
+                                    except: pass
+                                break
                                 if screenshot: 
                                     try: os.remove(screenshot)
                                     except: pass
