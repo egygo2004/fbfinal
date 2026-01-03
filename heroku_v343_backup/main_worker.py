@@ -55,7 +55,7 @@ def main():
                     proxy = worker.get_best_proxy()
                     if not proxy:
                         print("[!] No active proxies available in pool!")
-                        worker.update_status(doc_id, "failed", logs="No active proxies available")
+                        worker.update_status(doc_id, "failed", error_reason="No active proxies available")
                         break
                     
                     print(f"[*] Using Proxy: {proxy['host']} (Try {retry_count+1})")
@@ -89,9 +89,16 @@ def main():
                             if screenshot: os.remove(screenshot)
                         else:
                             print("[X] Flow failed (SMS not found or logic error)")
-                            # We don't necessarily mark proxy as failed here unless it's a connection issue
-                            # But for "Free Trial" rotation, we might want to rotate if it fails too often
-                            worker.update_status(doc_id, "failed", logs="SMS option not found")
+                            # Get last screenshot for failed cases
+                            screenshot = None
+                            files = os.listdir('.')
+                            shots = sorted([f for f in files if f.startswith('step_')], reverse=True)
+                            if shots: screenshot = shots[0]
+                            
+                            worker.update_status(doc_id, "failed", error_reason="SMS_NOT_FOUND", screenshot_path=screenshot)
+                            if screenshot: 
+                                try: os.remove(screenshot)
+                                except: pass
                             break # Don't retry different proxies if it's just a Facebook logic failure
                             
                     except Exception as flow_err:

@@ -88,11 +88,11 @@ class AppwriteWorkerClient:
         except Exception as e:
             print(f"[Appwrite] Error reporting proxy: {e}")
 
-    def update_status(self, doc_id, status, result_url=None, logs=None, screenshot_path=None, cookies_json=None):
+    def update_status(self, doc_id, status, result_url=None, error_reason=None, screenshot_path=None, cookies_json=None):
         """Update the status and upload assets"""
         data = {"status": status}
         if result_url: data["result_url"] = result_url
-        if logs: data["logs"] = logs[:5000]
+        if error_reason: data["error_reason"] = error_reason[:500]
         
         try:
             # Upload Screenshot

@@ -258,130 +258,157 @@ const App = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" style={{ height: 'calc(100vh - 380px)' }}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" style={{ height: 'calc(100vh - 380px)' }}>
               {/* LEFT: PENDING QUEUE */}
               <div className="bg-gray-900/50 border border-gray-800 rounded-xl flex flex-col overflow-hidden">
                 <div className="flex justify-between items-center p-4 border-b border-gray-800">
                   <h2 className="font-bold flex items-center gap-2 text-blue-400 uppercase tracking-wider text-sm">
-                    <Clock size={16} /> Pending Queue
+                    <Clock size={16} /> Pending ({pendingCount + processingCount})
                   </h2>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-2.5 text-gray-500" size={14} />
-                    <input
-                      type="text"
-                      placeholder="Search..."
-                      className="bg-gray-800 border border-gray-700 rounded-lg pl-9 pr-4 py-2 text-sm w-40 focus:border-blue-500 outline-none"
-                      onChange={(e) => setSearchPending(e.target.value)}
-                    />
-                  </div>
                 </div>
-                <div className="overflow-y-auto flex-1 p-4">
+                <div className="overflow-y-auto flex-1 p-3">
                   <div className="space-y-2">
                     {numbers
                       .filter(n => n.status === 'pending' || n.status === 'processing')
-                      .filter(n => n.phone?.includes(searchPending))
                       .map(item => (
-                        <div key={item.$id} className={`p-4 rounded-lg border flex justify-between items-center transition-all ${item.status === 'processing' ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-gray-800/50 border-gray-700 hover:border-blue-500/30'}`}>
+                        <div key={item.$id} className={`p-3 rounded-lg border flex justify-between items-center transition-all ${item.status === 'processing' ? 'bg-yellow-500/10 border-yellow-500/30 animate-pulse' : 'bg-gray-800/50 border-gray-700'}`}>
                           <div>
-                            <div className="font-mono text-lg font-semibold">{item.phone}</div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${item.status === 'processing' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`}>
-                                {item.status?.toUpperCase()}
-                              </span>
-                              <span className="text-xs text-gray-500">{item.created_at ? new Date(item.created_at).toLocaleTimeString() : '-'}</span>
-                            </div>
+                            <div className="font-mono text-sm font-semibold">{item.phone}</div>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${item.status === 'processing' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                              {item.status?.toUpperCase()}
+                            </span>
                           </div>
                           <button
-                            className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                            className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-all"
                             onClick={async () => {
-                              if (confirm("Delete this entry?")) {
+                              if (confirm("Delete?")) {
                                 await databases.deleteDocument(DB_ID, QUEUE_COLL_ID, item.$id);
                                 fetchNumbers();
                               }
                             }}
                           >
-                            <Trash2 size={18} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       ))}
                     {numbers.filter(n => n.status === 'pending' || n.status === 'processing').length === 0 && (
-                      <div className="text-center text-gray-600 py-16 italic">Queue is empty</div>
+                      <div className="text-center text-gray-600 py-8 italic text-sm">Queue empty</div>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* RIGHT: SUCCESS */}
+              {/* MIDDLE: SUCCESS */}
               <div className="bg-gray-900/50 border border-emerald-500/20 rounded-xl flex flex-col overflow-hidden shadow-lg shadow-emerald-500/5">
                 <div className="flex justify-between items-center p-4 border-b border-gray-800">
                   <h2 className="font-bold flex items-center gap-2 text-emerald-400 uppercase tracking-wider text-sm">
-                    <CheckCircle size={16} /> Session Success
+                    <CheckCircle size={16} /> Success ({successCount})
                   </h2>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-2.5 text-gray-500" size={14} />
-                    <input
-                      type="text"
-                      placeholder="Search..."
-                      className="bg-gray-800 border border-gray-700 rounded-lg pl-9 pr-4 py-2 text-sm w-40 focus:border-emerald-500 outline-none"
-                      onChange={(e) => setSearchSuccess(e.target.value)}
-                    />
-                  </div>
                 </div>
-                <div className="overflow-y-auto flex-1 p-4">
-                  <div className="space-y-3">
+                <div className="overflow-y-auto flex-1 p-3">
+                  <div className="space-y-2">
                     {numbers
                       .filter(n => n.status === 'success')
-                      .filter(n => n.phone?.includes(searchSuccess))
                       .map(item => (
-                        <div key={item.$id} className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-all">
-                          <div className="flex justify-between items-start mb-3">
-                            <div className="font-mono text-xl text-emerald-100 font-bold">{item.phone}</div>
-                            <span className="text-xs text-emerald-400/60 bg-emerald-500/10 px-2 py-1 rounded-full">
-                              {item.created_at ? new Date(item.created_at).toLocaleDateString() : '-'}
-                            </span>
+                        <div key={item.$id} className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-all">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="font-mono text-base text-emerald-100 font-bold">{item.phone}</div>
+                            <span className="text-xs text-emerald-400/60">{item.created_at ? new Date(item.created_at).toLocaleTimeString() : ''}</span>
                           </div>
                           {item.result_url && (
-                            <div className="flex items-center gap-2 bg-black/30 p-3 rounded-lg mb-3 border border-emerald-500/10">
-                              <ExternalLink size={14} className="text-emerald-500 flex-shrink-0" />
+                            <div className="flex items-center gap-2 bg-black/30 p-2 rounded mb-2 border border-emerald-500/10">
+                              <ExternalLink size={12} className="text-emerald-500 flex-shrink-0" />
                               <span className="truncate text-xs text-gray-400 flex-1 font-mono">{item.result_url}</span>
-                              <button className="text-emerald-500 hover:text-white flex-shrink-0" onClick={() => navigator.clipboard.writeText(item.result_url)}>
-                                <Copy size={14} />
+                              <button className="text-emerald-500 hover:text-white" onClick={() => navigator.clipboard.writeText(item.result_url)}>
+                                <Copy size={12} />
                               </button>
                             </div>
                           )}
-                          <div className="flex gap-2 justify-end">
+                          <div className="flex gap-1.5 flex-wrap">
                             {item.screenshot_id && (
                               <button
-                                className="px-3 py-2 bg-emerald-500/10 text-emerald-400 text-xs rounded-lg hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-2"
+                                className="px-2 py-1 bg-emerald-500/10 text-emerald-400 text-xs rounded hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1"
                                 onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${item.screenshot_id}/view?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
                               >
-                                <Smartphone size={12} /> Screenshot
+                                <Smartphone size={10} /> Shot
                               </button>
                             )}
                             {item.cookie_file_id && (
                               <button
-                                className="px-3 py-2 bg-blue-500/10 text-blue-400 text-xs rounded-lg hover:bg-blue-500 hover:text-white transition-all flex items-center gap-2"
+                                className="px-2 py-1 bg-blue-500/10 text-blue-400 text-xs rounded hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1"
                                 onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${item.cookie_file_id}/download?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
                               >
-                                <Download size={12} /> Cookies
+                                <Download size={10} /> Cookies
                               </button>
                             )}
                             <button
-                              className="px-3 py-2 hover:bg-red-500/20 text-gray-500 hover:text-red-400 text-xs rounded-lg transition-all"
+                              className="px-2 py-1 hover:bg-red-500/20 text-gray-500 hover:text-red-400 text-xs rounded transition-all ml-auto"
                               onClick={async () => {
-                                if (confirm("Delete this entry?")) {
+                                if (confirm("Delete?")) {
                                   await databases.deleteDocument(DB_ID, QUEUE_COLL_ID, item.$id);
                                   fetchNumbers();
                                 }
                               }}
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={12} />
                             </button>
                           </div>
                         </div>
                       ))}
-                    {numbers.filter(n => n.status === 'success').length === 0 && (
-                      <div className="text-center text-gray-600 py-16 italic">No successful sessions yet</div>
+                    {successCount === 0 && (
+                      <div className="text-center text-gray-600 py-8 italic text-sm">No success yet</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT: FAILED */}
+              <div className="bg-gray-900/50 border border-red-500/20 rounded-xl flex flex-col overflow-hidden shadow-lg shadow-red-500/5">
+                <div className="flex justify-between items-center p-4 border-b border-gray-800">
+                  <h2 className="font-bold flex items-center gap-2 text-red-400 uppercase tracking-wider text-sm">
+                    <XCircle size={16} /> Failed ({failedCount})
+                  </h2>
+                </div>
+                <div className="overflow-y-auto flex-1 p-3">
+                  <div className="space-y-2">
+                    {numbers
+                      .filter(n => n.status === 'failed')
+                      .map(item => (
+                        <div key={item.$id} className="p-3 rounded-lg bg-red-500/5 border border-red-500/20 hover:bg-red-500/10 transition-all">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="font-mono text-base text-red-100 font-bold">{item.phone}</div>
+                            <span className="text-xs text-red-400/60">{item.created_at ? new Date(item.created_at).toLocaleTimeString() : ''}</span>
+                          </div>
+                          {item.error_reason && (
+                            <div className="bg-red-500/10 text-red-400 px-2 py-1 rounded text-xs font-mono mb-2">
+                              ❌ {item.error_reason}
+                            </div>
+                          )}
+                          <div className="flex gap-1.5 flex-wrap">
+                            {item.screenshot_id && (
+                              <button
+                                className="px-2 py-1 bg-red-500/10 text-red-400 text-xs rounded hover:bg-red-500 hover:text-white transition-all flex items-center gap-1"
+                                onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${item.screenshot_id}/view?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
+                              >
+                                <Smartphone size={10} /> Screenshot
+                              </button>
+                            )}
+                            <button
+                              className="px-2 py-1 hover:bg-red-500/20 text-gray-500 hover:text-red-400 text-xs rounded transition-all ml-auto"
+                              onClick={async () => {
+                                if (confirm("Delete?")) {
+                                  await databases.deleteDocument(DB_ID, QUEUE_COLL_ID, item.$id);
+                                  fetchNumbers();
+                                }
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    {failedCount === 0 && (
+                      <div className="text-center text-gray-600 py-8 italic text-sm">No failures</div>
                     )}
                   </div>
                 </div>
