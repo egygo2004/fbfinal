@@ -265,10 +265,22 @@ class FacebookOTPBrowser:
                 requests.post(url, files={"photo": f}, data={"chat_id": self.telegram_chat_id, "caption": caption})
         except Exception as e: log(f"Telegram error: {e}", "WARN")
 
+    def check_ip(self):
+        try:
+            log("🌍 Checking IP...", "INFO")
+            self.driver.get('https://api.ipify.org?format=json')
+            time.sleep(2)
+            ip_info = self.driver.find_element(By.TAG_NAME, "body").text
+            log(f"✅ Current IP: {ip_info}", "SUCCESS")
+        except Exception as e:
+            log(f"⚠️ Could not verify IP: {e}", "WARN")
+
     def run_flow(self, phone):
         self.current_phone = phone
         log(f"🚀 Processing: {phone}")
         if not self._setup_driver(): return False
+        
+        self.check_ip() # Verify IP before starting
 
         try:
             # 1. Open
