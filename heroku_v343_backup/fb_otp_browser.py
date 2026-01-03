@@ -24,6 +24,7 @@ import requests
 import io
 import zipfile
 import tempfile
+import traceback
 
 # Fix console encoding
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -217,6 +218,7 @@ class FacebookOTPBrowser:
             return True
         except Exception as e:
             log(f"Setup Error: {e}", "ERROR")
+            traceback.print_exc()
             if self.driver: self.driver.quit()
             return False
 
