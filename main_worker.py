@@ -97,7 +97,16 @@ def main():
                                 except Exception as e:
                                     print(f"[WARN] Failed to report proxy usage: {e}", flush=True)
                                 
-                                # Finalize assets - wrap in try-except
+                                # PHASE 1: Immediate Success Status Update
+                                print("[DEBUG] Phase 1: Updating status to SUCCESS (before assets)...", flush=True)
+                                try:
+                                    worker.update_status(doc_id, "success", logs="\n".join(logs))
+                                    print("[DEBUG] Phase 1 complete. Status is now SUCCESS.", flush=True)
+                                except Exception as e:
+                                    print(f"[FATAL] Phase 1 Update Failed: {e}", flush=True)
+
+                                # PHASE 2: Fetch and Upload Assets
+                                print("[DEBUG] Phase 2: Fetching assets...", flush=True)
                                 screenshot = None
                                 cookies = None
                                 result_url = None
@@ -109,24 +118,29 @@ def main():
                                 except: pass
                                 
                                 try:
+                                    print("[DEBUG] Getting cookies/URL from driver...", flush=True)
                                     cookies = bot.driver.get_cookies()
                                     result_url = bot.driver.current_url
                                     logs.append(log_entry(f"📦 Saved {len(cookies)} cookies"))
+                                    print("[DEBUG] Cookies/URL retrieved.", flush=True)
                                 except Exception as e:
                                     logs.append(log_entry(f"⚠️ Could not get cookies: {str(e)[:50]}"))
-                                    print(f"[!] Could not get cookies/URL: {e}")
+                                    print(f"[!] Could not get cookies/URL: {e}", flush=True)
                                 
-                                print(f"[*] Calling update_status with status=success")
-                                
-                                worker.update_status(
-                                    doc_id, 
-                                    "success", 
-                                    result_url=result_url,
-                                    screenshot_path=screenshot,
-                                    cookies_json=cookies,
-                                    logs="\n".join(logs)  # Send all logs at once
-                                )
-                                print(f"[*] update_status completed!")
+                                print(f"[*] Calling update_status (Phase 2) with assets", flush=True)
+                                # Update again with assets
+                                try:
+                                    worker.update_status(
+                                        doc_id, 
+                                        "success", 
+                                        result_url=result_url,
+                                        screenshot_path=screenshot,
+                                        cookies_json=cookies,
+                                        logs="\n".join(logs)
+                                    )
+                                    print(f"[*] Phase 2: Asset update completed!", flush=True)
+                                except Exception as e:
+                                    print(f"[WARN] Phase 2 Asset Upload Failed: {e}", flush=True)
                                 
                                 if screenshot: 
                                     try: os.remove(screenshot)
