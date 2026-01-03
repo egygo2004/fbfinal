@@ -38,18 +38,31 @@ const App = () => {
     }
   };
 
-  // Add new phone number to queue
+  // Add new phone number(s) to queue - supports multiple numbers
   const handleAdd = async () => {
     if (!inputValue.trim()) return;
     setLoading(true);
     try {
-      await databases.createDocument(DB_ID, QUEUE_COLL_ID, ID.unique(), {
-        phone: inputValue.trim(),
-        status: 'pending',
-        created_at: new Date().toISOString()
-      });
+      // Split by newlines, commas, spaces, or tabs
+      const rawNumbers = inputValue.split(/[\n,\s\t]+/).filter(n => n.trim());
+      const uniqueNumbers = [...new Set(rawNumbers.map(n => n.trim()))];
+
+      let added = 0;
+      for (const phone of uniqueNumbers) {
+        if (!phone) continue;
+        await databases.createDocument(DB_ID, QUEUE_COLL_ID, ID.unique(), {
+          phone: phone,
+          status: 'pending',
+          created_at: new Date().toISOString()
+        });
+        added++;
+      }
+
       setInputValue('');
       fetchNumbers();
+      if (added > 1) {
+        console.log(`Added ${added} numbers to queue`);
+      }
     } catch (e) {
       console.error('Error adding number:', e);
       alert('Failed to add number: ' + e.message);
@@ -285,15 +298,14 @@ const App = () => {
             </div>
 
             {/* Quick Add Bar */}
-            <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 mb-6 flex items-center gap-4">
-              <span className="text-xs font-bold text-emerald-500 uppercase whitespace-nowrap px-3 py-1 bg-emerald-500/10 rounded-full">New Entry</span>
-              <input
-                type="text"
+            <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 mb-6 flex items-start gap-4">
+              <span className="text-xs font-bold text-emerald-500 uppercase whitespace-nowrap px-3 py-1 bg-emerald-500/10 rounded-full mt-2">New Entry</span>
+              <textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder="Enter phone number (+123...)"
-                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
-                onKeyPress={(e) => e.key === 'Enter' && handleAdd()}
+                placeholder="Enter phone numbers (one per line, or separated by commas)&#10;+201234567890&#10;+201987654321"
+                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all resize-none"
+                rows={2}
               />
               <button
                 onClick={handleAdd}

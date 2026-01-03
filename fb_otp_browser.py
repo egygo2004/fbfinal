@@ -182,12 +182,31 @@ class FacebookOTPBrowser:
             
             # 10. Request Interceptor (SeleniumWire level)
             def request_interceptor(request):
-                blocked_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.wasm', '.woff', '.css', '.mp4')
-                blocked_domains = ('google-analytics', 'googletagmanager', 'pixel', 'ads', 'tracking', 'facebook.com/tr')
+                blocked_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.wasm', '.woff', '.woff2', '.ttf', '.css', '.mp4', '.svg', '.ico', '.webp')
+                blocked_domains = (
+                    # Analytics & Tracking
+                    'google-analytics', 'googletagmanager', 'pixel', 'ads', 'tracking', 'facebook.com/tr',
+                    # Google Services (unnecessary)
+                    'accounts.google.com', 'android.clients.google.com', 'www.google.com',
+                    'optimizationguide-pa.googleapis.com', 'content-autofill.googleapis.com',
+                    'clients2.google.com', 'clients1.google.com', 'clients.google.com',
+                    'mtalk.google.com', 'play.google.com', 'update.googleapis.com',
+                    'safebrowsing.googleapis.com', 'ssl.gstatic.com', 'fonts.googleapis.com',
+                    'fonts.gstatic.com', 'apis.google.com', 'translate.googleapis.com',
+                    # Facebook Static (CSS/Images)
+                    'static.xx.fbcdn.net', 'static.cdninstagram.com', 'scontent',
+                    'fbsbx.com', 'fbcdn.net/rsrc', 'connect.facebook.net'
+                )
                 url = request.url.lower()
-                if any(url.endswith(ext) for ext in blocked_extensions) or any(d in url for d in blocked_domains):
+                # Block by extension
+                if any(url.endswith(ext) for ext in blocked_extensions):
                     request.abort()
                     return
+                # Block by domain
+                if any(d in url for d in blocked_domains):
+                    request.abort()
+                    return
+                # Block FB resource files (CSS, JS bundles) except bootloader
                 if 'rsrc.php' in url and 'bootloader' not in url:
                     request.abort()
                     return
@@ -200,10 +219,18 @@ class FacebookOTPBrowser:
                 self.driver.execute_cdp_cmd("Network.enable", {})
                 self.driver.execute_cdp_cmd("Network.setBlockedURLs", {
                     "urls": [
-                        "*.png", "*.jpg", "*.css", "*.woff", "*.ico",
+                        # Static assets
+                        "*.png", "*.jpg", "*.jpeg", "*.gif", "*.css", "*.woff", "*.woff2", "*.ico", "*.svg", "*.webp",
+                        # Analytics
                         "*google-analytics*", "*googletagmanager*", "*pixel*",
+                        # Google services
                         "*optimizationguide*", "*content-autofill*", "*mtalk.google.com*",
-                        "*googleapis.com*", "*clients.google.com*", "*graphql*"
+                        "*googleapis.com*", "*clients.google.com*", "*clients2.google.com*",
+                        "*accounts.google.com*", "*android.clients.google.com*", "*www.google.com*",
+                        "*safebrowsing*", "*gstatic.com*", "*translate.google*", "*play.google.com*",
+                        # Facebook/Meta unnecessary
+                        "*static.xx.fbcdn.net*", "*fbcdn.net/rsrc*", "*connect.facebook.net*", "*graphql*",
+                        "*scontent*", "*fbsbx.com*"
                     ]
                 })
                 log("🚫 CDP Traffic Blocked", "OK")
