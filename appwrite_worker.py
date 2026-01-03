@@ -118,7 +118,7 @@ class AppwriteWorkerClient:
                     file_id,
                     InputFile.from_path(screenshot_path)
                 )
-                data["screenshot_id"] = file_result['$id']
+                # data["screenshot_id"] = file_result['$id']  # Disabled: Attribute missing in DB schema
                 print(f"[Appwrite] Screenshot uploaded: {file_result['$id']}")
             except Exception as e:
                 print(f"[Appwrite] Screenshot upload failed: {e}")
@@ -138,7 +138,7 @@ class AppwriteWorkerClient:
                     file_id,
                     InputFile.from_path(cookie_path)
                 )
-                data["cookie_file_id"] = file_result['$id']
+                # data["cookie_file_id"] = file_result['$id']  # Disabled: Attribute missing in DB schema
                 print(f"[Appwrite] Cookies uploaded: {file_result['$id']}")
                 os.remove(cookie_path)
             except Exception as e:
