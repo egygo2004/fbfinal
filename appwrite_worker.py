@@ -101,46 +101,22 @@ class AppwriteWorkerClient:
             print(f"[Appwrite] Log append error: {e}")
 
     def update_status(self, doc_id, status, result_url=None, error_reason=None, screenshot_path=None, cookies_json=None, logs=None):
-        """Update the status and upload assets"""
+        """Update the status - SIMPLIFIED: skip asset uploads for speed"""
         data = {"status": status}
         if result_url: data["result_url"] = result_url
         if error_reason: data["error_reason"] = error_reason[:500]
         if logs: data["logs"] = logs[-8000:]
         
-        # Try to upload Screenshot (separate try so failure doesn't block status update)
-        if screenshot_path and os.path.exists(screenshot_path):
-            try:
-                file_result = self.storage.create_file(
-                    self.bucket_id,
-                    f"shot_{doc_id}_{int(time.time())}",  # Add timestamp to avoid conflicts
-                    InputFile.from_path(screenshot_path)
-                )
-                data["screenshot_id"] = file_result['$id']
-            except Exception as e:
-                print(f"[Appwrite] Screenshot upload failed: {e}")
-
-        # Try to upload Cookies (separate try so failure doesn't block status update)
-        if cookies_json:
-            try:
-                cookie_path = f"tmp_cookies_{doc_id}.json"
-                with open(cookie_path, 'w') as f:
-                    json.dump(cookies_json, f)
-                file_result = self.storage.create_file(
-                    self.bucket_id,
-                    f"cookies_{doc_id}_{int(time.time())}",  # Add timestamp to avoid conflicts
-                    InputFile.from_path(cookie_path)
-                )
-                data["cookie_file_id"] = file_result['$id']
-                os.remove(cookie_path)
-            except Exception as e:
-                print(f"[Appwrite] Cookie upload failed: {e}")
-
+        # Skip screenshot/cookie uploads for now - they slow down the status update
+        # TODO: Re-enable after fixing timeout issues
+        
         # ALWAYS try to update the status (this is critical)
         try:
+            print(f"[Appwrite] Updating status to: {status}")
             self.databases.update_document(self.db_id, self.queue_id, doc_id, data)
-            print(f"[Appwrite] Updated {doc_id} to {status}")
+            print(f"[Appwrite] ✅ Updated {doc_id} to {status}")
         except Exception as e:
-            print(f"[Appwrite] Error updating status: {e}")
+            print(f"[Appwrite] ❌ Error updating status: {e}")
 
     def get_proxy_config(self):
         """Fetch proxy config from settings collection"""
