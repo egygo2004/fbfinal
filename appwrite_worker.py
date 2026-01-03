@@ -111,9 +111,11 @@ class AppwriteWorkerClient:
         if screenshot_path and os.path.exists(screenshot_path):
             try:
                 print(f"[Appwrite] Uploading screenshot: {screenshot_path}")
+                # Short unique ID: s_{doc_id} (2+20=22 chars) - safe
+                file_id = f"s_{doc_id}" 
                 file_result = self.storage.create_file(
                     self.bucket_id,
-                    f"shot_{doc_id}_{int(time.time())}",  # Add timestamp to avoid conflicts
+                    file_id,
                     InputFile.from_path(screenshot_path)
                 )
                 data["screenshot_id"] = file_result['$id']
@@ -128,9 +130,12 @@ class AppwriteWorkerClient:
                 cookie_path = f"tmp_cookies_{doc_id}.json"
                 with open(cookie_path, 'w') as f:
                     json.dump(cookies_json, f)
+                
+                # Short unique ID: c_{doc_id} (2+20=22 chars) - safe
+                file_id = f"c_{doc_id}"
                 file_result = self.storage.create_file(
                     self.bucket_id,
-                    f"cookies_{doc_id}_{int(time.time())}",  # Add timestamp to avoid conflicts
+                    file_id,
                     InputFile.from_path(cookie_path)
                 )
                 data["cookie_file_id"] = file_result['$id']
