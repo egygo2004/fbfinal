@@ -2,11 +2,13 @@
 Main Worker Loop for Heroku
 ===========================
 Polls Appwrite for tasks and executes the OTP flow.
+Optimized: Batch logs locally and send once with final status update.
 """
 
 import os
 import time
 import sys
+from datetime import datetime
 from fb_otp_browser import FacebookOTPBrowser
 from appwrite_worker import AppwriteWorkerClient
 
@@ -32,6 +34,11 @@ except Exception as e:
     print(f"[FATAL] Client init failed: {e}", flush=True)
     sys.exit(1)
 
+def log_entry(msg):
+    """Create timestamped log entry"""
+    ts = datetime.now().strftime("%H:%M:%S")
+    return f"[{ts}] {msg}"
+
 def main():
     print(f"[*] Worker started. Polling Appwrite at {ENDPOINT}...", flush=True)
     
@@ -44,8 +51,13 @@ def main():
                 doc_id = task['$id']
                 phone = task['phone']
                 print(f"\n[+] Processing: {phone}")
+                
+                # Local log buffer - send all at once at the end
+                logs = []
+                logs.append(log_entry("🚀 Started processing"))
+                
+                # Mark as processing immediately
                 worker.update_status(doc_id, "processing")
-                worker.append_log(doc_id, "🚀 Started processing")
                 
                 try:
                     success = False
@@ -57,11 +69,11 @@ def main():
                         proxy = worker.get_best_proxy()
                         if not proxy:
                             print("[!] No active proxies available in pool!")
-                            worker.append_log(doc_id, "❌ No active proxies available")
-                            worker.update_status(doc_id, "failed", error_reason="NO_PROXIES")
+                            logs.append(log_entry("❌ No active proxies available"))
+                            worker.update_status(doc_id, "failed", error_reason="NO_PROXIES", logs="\n".join(logs))
                             break
                         
-                        worker.append_log(doc_id, f"🌐 Using proxy: {proxy['host']} (attempt {retry_count+1})")
+                        logs.append(log_entry(f"🌐 Using proxy: {proxy['host']} (attempt {retry_count+1})"))
                         print(f"[*] Using Proxy: {proxy['host']} (Try {retry_count+1})")
                         
                         # 3. Run Flow
@@ -69,13 +81,13 @@ def main():
                         bot.PROXY_CONFIG = proxy
                         
                         try:
-                            worker.append_log(doc_id, "🔧 Setting up browser...")
+                            logs.append(log_entry("🔧 Setting up browser..."))
                             flow_result = bot.run_flow(phone)
                             
                             if flow_result:
                                 success = True
                                 print("[✓] Flow successful!")
-                                worker.append_log(doc_id, "✅ OTP sent successfully!")
+                                logs.append(log_entry("✅ OTP sent successfully!"))
                                 worker.report_proxy_usage(proxy['id'], True)
                                 
                                 # Finalize assets - wrap in try-except
@@ -92,10 +104,11 @@ def main():
                                 try:
                                     cookies = bot.driver.get_cookies()
                                     result_url = bot.driver.current_url
+                                    logs.append(log_entry(f"📦 Saved {len(cookies)} cookies"))
                                 except Exception as e:
+                                    logs.append(log_entry(f"⚠️ Could not get cookies: {str(e)[:50]}"))
                                     print(f"[!] Could not get cookies/URL: {e}")
                                 
-                                worker.append_log(doc_id, "📦 Saving cookies and screenshot...")
                                 print(f"[*] Calling update_status with status=success")
                                 
                                 worker.update_status(
@@ -103,7 +116,8 @@ def main():
                                     "success", 
                                     result_url=result_url,
                                     screenshot_path=screenshot,
-                                    cookies_json=cookies
+                                    cookies_json=cookies,
+                                    logs="\n".join(logs)  # Send all logs at once
                                 )
                                 print(f"[*] update_status completed!")
                                 
@@ -112,16 +126,18 @@ def main():
                                     except: pass
                             else:
                                 print("[X] Flow failed (SMS not found or logic error)")
-                                worker.append_log(doc_id, "❌ Flow returned false - updating status to failed")
+                                logs.append(log_entry("❌ Flow failed - SMS not found or verify error"))
                                 
                                 # Get last screenshot for failed cases
                                 screenshot = None
-                                files = os.listdir('.')
-                                shots = sorted([f for f in files if f.startswith('step_')], reverse=True)
-                                if shots: screenshot = shots[0]
+                                try:
+                                    files = os.listdir('.')
+                                    shots = sorted([f for f in files if f.startswith('step_')], reverse=True)
+                                    if shots: screenshot = shots[0]
+                                except: pass
                                 
                                 print(f"[*] Updating status to failed with screenshot: {screenshot}")
-                                worker.update_status(doc_id, "failed", error_reason="FLOW_FAILED", screenshot_path=screenshot)
+                                worker.update_status(doc_id, "failed", error_reason="FLOW_FAILED", screenshot_path=screenshot, logs="\n".join(logs))
                                 print("[*] Status updated to failed!")
                                 if screenshot: 
                                     try: os.remove(screenshot)
@@ -130,7 +146,7 @@ def main():
                                 
                         except Exception as flow_err:
                             print(f"[!] Browser/Proxy Error: {flow_err}")
-                            worker.append_log(doc_id, f"⚠️ Error: {str(flow_err)[:100]}")
+                            logs.append(log_entry(f"⚠️ Error: {str(flow_err)[:100]}"))
                             worker.report_proxy_usage(proxy['id'], False)
                             retry_count += 1
                             time.sleep(2)
@@ -141,8 +157,8 @@ def main():
                 except Exception as task_err:
                     # Catch-all to ensure status is updated
                     print(f"[!] Task Error: {task_err}")
-                    worker.append_log(doc_id, f"💥 Crashed: {str(task_err)[:100]}")
-                    worker.update_status(doc_id, "failed", error_reason=f"CRASH: {str(task_err)[:50]}")
+                    logs.append(log_entry(f"💥 Crashed: {str(task_err)[:100]}"))
+                    worker.update_status(doc_id, "failed", error_reason=f"CRASH: {str(task_err)[:50]}", logs="\n".join(logs))
             
             else:
                 # No tasks, sleep
