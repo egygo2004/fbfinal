@@ -385,7 +385,7 @@ class FacebookOTPBrowser:
                 # Snapshot and Cookie placeholder for Appwrite
                 shot = self._save_step_screenshot("success")
                 cookies = self.driver.get_cookies()
-                if shot: self.send_telegram_photo(f"✅ OTP SENT!\nPhone: {phone}\nURL: {current_url}", shot)
+                # Telegram removed as per request
                 return True
             else:
                 log("Failed to verify OTP sent", "ERROR")
