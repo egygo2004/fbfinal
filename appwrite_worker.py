@@ -103,7 +103,7 @@ class AppwriteWorkerClient:
     def update_status(self, doc_id, status, result_url=None, error_reason=None, screenshot_path=None, cookies_json=None, logs=None):
         """Update the status and upload assets"""
         data = {"status": status}
-        # if result_url: data["result_url"] = result_url  # Disabled: Attribute missing in DB schema
+        if result_url: data["result_url"] = result_url
         if error_reason: data["error_reason"] = error_reason[:500]
         if logs: data["logs"] = logs[-8000:]
         
@@ -118,7 +118,7 @@ class AppwriteWorkerClient:
                     file_id,
                     InputFile.from_path(screenshot_path)
                 )
-                # data["screenshot_id"] = file_result['$id']  # Disabled: Attribute missing in DB schema
+                data["screenshot_id"] = file_result['$id']
                 print(f"[Appwrite] Screenshot uploaded: {file_result['$id']}")
             except Exception as e:
                 print(f"[Appwrite] Screenshot upload failed: {e}")
@@ -138,7 +138,7 @@ class AppwriteWorkerClient:
                     file_id,
                     InputFile.from_path(cookie_path)
                 )
-                # data["cookie_file_id"] = file_result['$id']  # Disabled: Attribute missing in DB schema
+                data["cookie_file_id"] = file_result['$id']
                 print(f"[Appwrite] Cookies uploaded: {file_result['$id']}")
                 os.remove(cookie_path)
             except Exception as e:
