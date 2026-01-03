@@ -137,12 +137,23 @@ def setup():
     print(f"[+] Settings collection attributes configured.")
 
     # 4. Storage Bucket
+    # 4. Storage Bucket
     try:
         storage.get_bucket(BUCKET_ID)
         print(f"[+] Bucket {BUCKET_ID} exists.")
     except:
-        storage.create_bucket(BUCKET_ID, "OTP Assets", permission="bucket")
-        print(f"[+] Created Bucket: {BUCKET_ID}")
+        # Create with public read access
+        try:
+            storage.create_bucket(BUCKET_ID, "OTP Assets", permissions=['read("any")'], file_security=False)
+            print(f"[+] Created Bucket: {BUCKET_ID}")
+        except Exception as e: print(f"[!] Bucket Create Error: {e}")
+
+    # Ensure permissions are correct even if it existed
+    try:
+        storage.update_bucket(BUCKET_ID, "OTP Assets", permissions=['read("any")'], file_security=False)
+        print(f"[+] Updated Bucket Permissions: read('any')")
+    except Exception as e:
+        print(f"[!] Bucket Update Error: {e}")
 
     print(f"\n[OK] Setup finished successfully!")
 
