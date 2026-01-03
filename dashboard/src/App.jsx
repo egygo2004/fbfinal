@@ -9,6 +9,9 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchPending, setSearchPending] = useState('');
   const [searchSuccess, setSearchSuccess] = useState('');
+  const [showProxyModal, setShowProxyModal] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const [newProxy, setNewProxy] = useState({ connection_string: '', platform_username: '', platform_password: '' });
 
   // ... (fetchProxies, fetchNumbers, handleAdd, handleAddProxy definitions remain same, assume they are available in scope or previous lines)
 
