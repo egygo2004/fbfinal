@@ -392,9 +392,11 @@ class FacebookOTPBrowser:
 
         except Exception as e:
             log(f"Flow Error: {e}", "ERROR")
+            if self.driver:
+                try: self.driver.quit()
+                except: pass
             return False
-        finally:
-            if self.driver: self.driver.quit()
+        # Note: driver.quit() is NOT called on success - main_worker handles it
 
 def main():
     target = sys.argv[1] if len(sys.argv) > 1 else None

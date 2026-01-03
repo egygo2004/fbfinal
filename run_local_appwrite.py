@@ -62,6 +62,12 @@ def main():
     
     if result:
         print("\n🎉 SUCCESS! OTP was sent.")
+        print(f"    📱 URL: {bot.driver.current_url}")
+        cookies = bot.driver.get_cookies()
+        print(f"    🍪 Cookies: {len(cookies)} items")
+        import json
+        print(json.dumps(cookies, indent=2))
+        bot.driver.quit()
     else:
         print("\n❌ FAILED. Check logs above.")
 
