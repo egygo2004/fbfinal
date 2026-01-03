@@ -68,8 +68,8 @@ class AppwriteWorkerClient:
                         "id": p['$id'],
                         "host": parts[0],
                         "port": int(parts[1]),
-                        "user": parts[2],
-                        "pass": parts[3]
+                        "username": parts[2],
+                        "password": parts[3]
                     }
         except Exception as e:
             print(f"[Appwrite] Error fetching proxy: {e}")

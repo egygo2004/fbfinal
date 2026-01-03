@@ -171,6 +171,12 @@ class FacebookOTPBrowser:
             else:
                 service = Service()
 
+            # Debug Proxy Config
+            if self.PROXY_CONFIG:
+                sanitized = self.PROXY_CONFIG.copy()
+                if 'password' in sanitized: sanitized['password'] = '***'
+                log(f"Configuring Proxy: {sanitized}")
+
             self.driver = webdriver.Chrome(service=service, options=options, seleniumwire_options=seleniumwire_options)
             
             # 10. Request Interceptor (SeleniumWire level)
