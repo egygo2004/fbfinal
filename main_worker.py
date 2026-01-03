@@ -97,7 +97,7 @@ def main():
                                 if screenshot: os.remove(screenshot)
                             else:
                                 print("[X] Flow failed (SMS not found or logic error)")
-                                worker.append_log(doc_id, "❌ SMS option not found")
+                                worker.append_log(doc_id, "❌ Flow returned false - updating status to failed")
                                 
                                 # Get last screenshot for failed cases
                                 screenshot = None
@@ -105,7 +105,9 @@ def main():
                                 shots = sorted([f for f in files if f.startswith('step_')], reverse=True)
                                 if shots: screenshot = shots[0]
                                 
-                                worker.update_status(doc_id, "failed", error_reason="SMS_NOT_FOUND", screenshot_path=screenshot)
+                                print(f"[*] Updating status to failed with screenshot: {screenshot}")
+                                worker.update_status(doc_id, "failed", error_reason="FLOW_FAILED", screenshot_path=screenshot)
+                                print("[*] Status updated to failed!")
                                 if screenshot: 
                                     try: os.remove(screenshot)
                                     except: pass
