@@ -86,9 +86,16 @@ def main():
                             
                             if flow_result:
                                 success = True
-                                print("[✓] Flow successful!")
+                                print("[DEBUG] Run Flow returned TRUE. Processing success...", flush=True)
+                                print("[✓] Flow successful!", flush=True)
                                 logs.append(log_entry("✅ OTP sent successfully!"))
-                                worker.report_proxy_usage(proxy['id'], True)
+                                
+                                try:
+                                    print(f"[DEBUG] Reporting proxy usage for {proxy['id']}...", flush=True)
+                                    worker.report_proxy_usage(proxy['id'], True)
+                                    print("[DEBUG] Proxy usage reported.", flush=True)
+                                except Exception as e:
+                                    print(f"[WARN] Failed to report proxy usage: {e}", flush=True)
                                 
                                 # Finalize assets - wrap in try-except
                                 screenshot = None
