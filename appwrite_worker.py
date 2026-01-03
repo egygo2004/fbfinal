@@ -101,15 +101,44 @@ class AppwriteWorkerClient:
             print(f"[Appwrite] Log append error: {e}")
 
     def update_status(self, doc_id, status, result_url=None, error_reason=None, screenshot_path=None, cookies_json=None, logs=None):
-        """Update the status - SIMPLIFIED: skip asset uploads for speed"""
+        """Update the status and upload assets"""
         data = {"status": status}
         if result_url: data["result_url"] = result_url
         if error_reason: data["error_reason"] = error_reason[:500]
         if logs: data["logs"] = logs[-8000:]
         
-        # Skip screenshot/cookie uploads for now - they slow down the status update
-        # TODO: Re-enable after fixing timeout issues
-        
+        # Try to upload Screenshot (separate try so failure doesn't block status update)
+        if screenshot_path and os.path.exists(screenshot_path):
+            try:
+                print(f"[Appwrite] Uploading screenshot: {screenshot_path}")
+                file_result = self.storage.create_file(
+                    self.bucket_id,
+                    f"shot_{doc_id}_{int(time.time())}",  # Add timestamp to avoid conflicts
+                    InputFile.from_path(screenshot_path)
+                )
+                data["screenshot_id"] = file_result['$id']
+                print(f"[Appwrite] Screenshot uploaded: {file_result['$id']}")
+            except Exception as e:
+                print(f"[Appwrite] Screenshot upload failed: {e}")
+
+        # Try to upload Cookies (separate try so failure doesn't block status update)
+        if cookies_json:
+            try:
+                print(f"[Appwrite] Uploading cookies...")
+                cookie_path = f"tmp_cookies_{doc_id}.json"
+                with open(cookie_path, 'w') as f:
+                    json.dump(cookies_json, f)
+                file_result = self.storage.create_file(
+                    self.bucket_id,
+                    f"cookies_{doc_id}_{int(time.time())}",  # Add timestamp to avoid conflicts
+                    InputFile.from_path(cookie_path)
+                )
+                data["cookie_file_id"] = file_result['$id']
+                print(f"[Appwrite] Cookies uploaded: {file_result['$id']}")
+                os.remove(cookie_path)
+            except Exception as e:
+                print(f"[Appwrite] Cookie upload failed: {e}")
+
         # ALWAYS try to update the status (this is critical)
         try:
             print(f"[Appwrite] Updating status to: {status}")
