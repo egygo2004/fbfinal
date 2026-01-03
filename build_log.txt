@@ -1,0 +1,51 @@
+remote: Updated 17 paths from c1a2137        
+remote: Compressing source files... done.        
+remote: Building source:        
+remote: 
+remote: -----> Building on the Heroku-24 stack        
+remote: -----> Using buildpacks:        
+remote:        1. heroku-community/apt        
+remote:        2. https://github.com/heroku/heroku-buildpack-google-chrome        
+remote:        3. https://github.com/heroku/heroku-buildpack-chromedriver        
+remote:        4. heroku/python        
+remote: -----> Apt app detected        
+remote: -----> Reusing cache        
+remote: -----> Updating APT package index        
+remote:        Hit:1 https://apt.postgresql.org/pub/repos/apt noble-pgdg InRelease        
+remote:        Hit:2 http://archive.ubuntu.com/ubuntu noble InRelease        
+remote:        Hit:3 http://security.ubuntu.com/ubuntu noble-security InRelease        
+remote:        Hit:4 http://archive.ubuntu.com/ubuntu noble-updates InRelease        
+remote:        Hit:5 http://archive.ubuntu.com/ubuntu noble-backports InRelease        
+remote:        rm: cannot remove '/var/cache/apt/archives/partial/*.deb': Permission denied        
+remote:        Reading package lists...        
+remote: -----> Fetching .debs for openssl        
+remote:        Reading package lists...        
+remote:        Building dependency tree...        
+remote:        0 upgraded, 0 newly installed, 1 reinstalled, 0 to remove and 34 not upgraded.        
+remote:        Need to get 0 B/1,003 kB of archives.        
+remote:        After this operation, 0 B of additional disk space will be used.        
+remote:        Download complete and in download only mode        
+remote: -----> Fetching .debs for libssl-dev        
+remote:        Reading package lists...        
+remote:        Building dependency tree...        
+remote:        0 upgraded, 0 newly installed, 1 reinstalled, 0 to remove and 34 not upgraded.        
+remote:        Need to get 0 B/2,408 kB of archives.        
+remote:        After this operation, 0 B of additional disk space will be used.        
+remote:        Download complete and in download only mode        
+remote: -----> Installing libssl-dev_3.0.13-0ubuntu3.6_amd64.deb        
+remote: -----> Installing openssl_3.0.13-0ubuntu3.6_amd64.deb        
+remote: -----> Writing profile script        
+remote: -----> Exporting environment        
+remote: -----> Rewrite package-config files        
+remote: -----> Google Chrome app detected        
+remote:  !     This buildpack has reached end of life. Please use https://github.com/heroku/heroku-buildpack-chrome-for-testing        
+remote:  !     Push rejected, failed to compile Google Chrome app.        
+remote: 
+remote:  !     Push failed        
+remote: Verifying deploy...        
+remote: 
+remote: !	Push rejected to fb-otp-proxy-bot-hema.        
+remote: 
+To https://git.heroku.com/fb-otp-proxy-bot-hema.git
+ ! [remote rejected] brightdata-proxy -> main (pre-receive hook declined)
+error: failed to push some refs to 'https://git.heroku.com/fb-otp-proxy-bot-hema.git'
