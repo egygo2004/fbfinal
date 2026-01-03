@@ -1,0 +1,280 @@
+name: FB OTP Automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      numbers:
+        description: Phone numbers one per line
+        required: false
+        type: string
+      mode:
+        description: 'Mode: run or ping'
+        required: false
+        default: 'run'
+        type: string
+
+
+
+jobs:
+  ping-check:
+    if: ${{ github.event.inputs.mode == 'ping' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Ping
+        run: |
+           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" --data-urlencode "text=✅ Server (${{ github.repository }}) is Online and Working!"
+
+  prepare-matrix:
+    if: ${{ github.event.inputs.mode == 'run' || github.event.inputs.mode == '' }}
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Generate Matrix
+        id: set-matrix
+        run: |
+          # Get input numbers, remove empty lines
+          INPUT_NUMBERS="${{ github.event.inputs.numbers }}"
+          
+          # Create JSON array of chunks (batches of 5)
+          # We use python for easier JSON handling
+          MATRIX_JSON=$(python3 -c "
+          import json
+          import sys
+          
+          input_str = '''$INPUT_NUMBERS'''
+          numbers = [n.strip() for n in input_str.split('\n') if n.strip()]
+          
+          # Chunk size = 1 (One number per job as requested)
+          chunk_size = 1
+          chunks = [numbers[i:i + chunk_size] for i in range(0, len(numbers), chunk_size)]
+          
+          # Create list of objects for matrix, e.g. [{'chunk': 'num1'}]
+          matrix = [{'numbers': '\\n'.join(chunk), 'id': i+1} for i, chunk in enumerate(chunks)]
+          
+          # SAFETY: If matrix is empty (no numbers), add a dummy entry to prevent workflow error
+          if not matrix:
+             matrix = [{'numbers': '', 'id': '0'}]
+             
+          print(json.dumps(matrix))
+          ")
+          
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+          echo "Generated Matrix: $MATRIX_JSON"
+
+  process-numbers:
+    needs: prepare-matrix
+    if: ${{ github.event.inputs.mode == 'run' || github.event.inputs.mode == '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@latest
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wireguard resolvconf unzip
+          pip install selenium webdriver-manager requests
+          # Verify Chrome is available (setup-chrome adds it to PATH)
+          google-chrome --version || echo "Chrome version check failed"
+
+      - name: Connect to VPN (ProtonVPN WireGuard)
+        run: |
+          # ProtonVPN WireGuard - Using local config files
+          echo "🔐 Setting up ProtonVPN WireGuard..."
+          
+          # Install WireGuard
+          sudo apt-get install -y wireguard
+          
+          # Configure DNS
+          echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf > /dev/null
+          echo "nameserver 1.1.1.1" | sudo tee -a /etc/resolv.conf > /dev/null
+          
+          # List available configs from repo
+          echo "📂 Available VPN configs:"
+          ls -la vpn/*.conf || true
+          
+          # Get all WireGuard configs and randomly select one
+          CONFIGS=(vpn/wg-*.conf)
+          TOTAL=${#CONFIGS[@]}
+          
+          if [ $TOTAL -eq 0 ]; then
+            echo "❌ No WireGuard configs found in vpn/ folder!"
+            exit 1
+          fi
+          
+          # Random selection
+          RANDOM_INDEX=$((RANDOM % TOTAL))
+          SELECTED_CONFIG="${CONFIGS[$RANDOM_INDEX]}"
+          
+          echo "🎲 Selected config ($((RANDOM_INDEX + 1))/$TOTAL): $SELECTED_CONFIG"
+          
+          # Copy to WireGuard folder
+          sudo cp "$SELECTED_CONFIG" /etc/wireguard/wg0.conf
+          sudo chmod 600 /etc/wireguard/wg0.conf
+          
+          # Show config info (hide private key)
+          echo "📄 Config details:"
+          grep -v "PrivateKey" /etc/wireguard/wg0.conf | head -10
+          
+          # Connect
+          echo "🔌 Connecting to VPN..."
+          sudo wg-quick up wg0
+          
+          # Wait and verify
+          sleep 5
+          
+          # Fix DNS (WireGuard often corrupts it)
+          echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf
+          echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
+          
+          # TEST CONNECTIVITY
+          echo "📡 Testing Connectivity..."
+          if ! ping -c 3 google.com; then
+            echo "❌ No Internet Access! Retrying with different DNS..."
+            echo "nameserver 8.8.4.4" | sudo tee /etc/resolv.conf
+            sleep 2
+            ping -c 3 google.com || exit 1
+          fi
+          
+          # Check connection
+          if ip addr show wg0 > /dev/null 2>&1; then
+            NEW_IP=$(curl -s --max-time 10 https://api.ipify.org || echo "unknown")
+            echo "✅ VPN Connected!"
+            echo "🌍 New IP: $NEW_IP"
+          else
+            echo "❌ VPN connection failed!"
+            sudo wg show || true
+            exit 1
+          fi
+      
+      - name: Get IP and WARP Status
+        id: ip
+        run: |
+           # Try multiple IP services with timeout and retry
+           IP=""
+           for service in "https://api.ipify.org" "https://ifconfig.me" "https://icanhazip.com" "https://ipecho.net/plain"; do
+             IP=$(curl -s --max-time 10 --retry 2 "$service" 2>/dev/null | tr -d '\n')
+             if [ -n "$IP" ] && echo "$IP" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+               echo "Got IP from $service: $IP"
+               break
+             fi
+           done
+           
+           # Fallback if all services fail
+           if [ -z "$IP" ]; then
+             IP="unknown"
+             echo "Warning: Could not determine IP address"
+           fi
+           
+           echo "ip=$IP" >> $GITHUB_OUTPUT
+           
+           # WARP status check with timeout
+           TRACE=$(curl -s --max-time 10 https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null || echo "")
+           if echo "$TRACE" | grep -q "warp=on"; then
+             echo "warp_status=✅ Active" >> $GITHUB_OUTPUT
+           else
+             echo "warp_status=❌ Inactive" >> $GITHUB_OUTPUT
+           fi
+      
+      - name: Create batch file
+        run: |
+          echo "${{ matrix.numbers }}" > numbers.txt
+          echo "Processing Batch #${{ matrix.id }}"
+          cat numbers.txt
+
+          
+      - name: Send Start Message
+        timeout-minutes: 1
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BATCH_ID: ${{ matrix.id }}
+          IP: ${{ steps.ip.outputs.ip }}
+        run: |
+          python3 -c "
+          import os, requests
+          try:
+              token = os.environ['TELEGRAM_TOKEN']
+              chat_id = os.environ['TELEGRAM_CHAT_ID']
+              batch_id = os.environ['BATCH_ID']
+              ip = os.environ.get('IP', 'Unknown')
+              
+              with open('numbers.txt', 'r') as f:
+                  count = len([l for l in f if l.strip()])
+              
+              msg = f'🚀 Batch #{batch_id} Started ({count} numbers)\n🌍 IP: {ip}\n🛡️ VPN: ✅ Proton (WireGuard)'
+              requests.post(f'https://api.telegram.org/bot{token}/sendMessage', data={'chat_id': chat_id, 'text': msg}, timeout=30)
+              print('Start message sent successfully')
+          except Exception as e:
+              print(f'Failed to send message: {e}')
+          "
+      
+      - name: Run OTP Script (Batch)
+        id: otp
+        timeout-minutes: 10
+        continue-on-error: true
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          IP="${{ steps.ip.outputs.ip }}"
+          while IFS= read -r number || [ -n "$number" ]; do
+            [ -z "$number" ] && continue
+            echo "Processing: $number"
+            result=$(python fb_otp_browser.py "$number" --headless 2>&1 || true)
+            echo "$result"
+            
+            # Status Check with Reason Extraction
+            if echo "$result" | grep -qi "OTP_SENT"; then
+              status="✅ OTP Sent"
+            else
+              # Try to get specific failure reason
+              fail_reason=$(echo "$result" | grep "FINAL_STATUS_MSG:" | tail -1 | sed 's/FINAL_STATUS_MSG: //')
+              if [ -n "$fail_reason" ] && [ "$fail_reason" != "Unknown Error" ]; then
+                status="❌ $fail_reason"
+              elif echo "$result" | grep -qi "FAILED"; then
+                status="❌ Failed (Generic)"
+              else
+                status="⚠️ Check Logs"
+              fi
+            fi
+            
+            # Extract URL
+            last_url=$(echo "$result" | grep -E "Final URL:|Last URL:" | tail -1 | sed 's/.*URL: //' || echo "")
+            
+            if [ -n "$last_url" ]; then
+              msg="Batch #${{ matrix.id }} | $number - $status | URL: $last_url"
+            else
+              msg="Batch #${{ matrix.id }} | $number - $status | IP: $IP"
+            fi
+            
+            # curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" --data-urlencode "text=$msg"
+            sleep 1
+          done < numbers.txt
+      
+      - name: Strong Cleanup
+        if: always()
+        run: |
+          echo "🧹 specific cleanup..."
+          sudo pkill -f chrome || true
+          sudo pkill -f python || true
+          
+          echo "🔌 Disconnecting VPN..."
+          sudo wg-quick down wg0 || true
+          echo "✅ Full Cleanup complete"
