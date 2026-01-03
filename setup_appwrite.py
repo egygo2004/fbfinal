@@ -22,7 +22,7 @@ try:
     from appwrite.services.databases import Databases
     from appwrite.services.storage import Storage
     from appwrite.id import ID
-    from appwrite.enums import IndexType
+    # from appwrite.enums import IndexType # Not used and causes import error in newer SDKs
 except ImportError as e:
     print(f"Please install appwrite sdk: pip install appwrite. Error: {e}")
     sys.exit(1)
