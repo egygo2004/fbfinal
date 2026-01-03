@@ -107,29 +107,36 @@ class AppwriteWorkerClient:
         if error_reason: data["error_reason"] = error_reason[:500]
         if logs: data["logs"] = logs[-8000:]
         
-        try:
-            # Upload Screenshot
-            if screenshot_path and os.path.exists(screenshot_path):
+        # Try to upload Screenshot (separate try so failure doesn't block status update)
+        if screenshot_path and os.path.exists(screenshot_path):
+            try:
                 file_result = self.storage.create_file(
                     self.bucket_id,
-                    f"shot_{doc_id}",
+                    f"shot_{doc_id}_{int(time.time())}",  # Add timestamp to avoid conflicts
                     InputFile.from_path(screenshot_path)
                 )
                 data["screenshot_id"] = file_result['$id']
+            except Exception as e:
+                print(f"[Appwrite] Screenshot upload failed: {e}")
 
-            # Upload Cookies
-            if cookies_json:
+        # Try to upload Cookies (separate try so failure doesn't block status update)
+        if cookies_json:
+            try:
                 cookie_path = f"tmp_cookies_{doc_id}.json"
                 with open(cookie_path, 'w') as f:
                     json.dump(cookies_json, f)
                 file_result = self.storage.create_file(
                     self.bucket_id,
-                    f"cookies_{doc_id}",
+                    f"cookies_{doc_id}_{int(time.time())}",  # Add timestamp to avoid conflicts
                     InputFile.from_path(cookie_path)
                 )
                 data["cookie_file_id"] = file_result['$id']
                 os.remove(cookie_path)
+            except Exception as e:
+                print(f"[Appwrite] Cookie upload failed: {e}")
 
+        # ALWAYS try to update the status (this is critical)
+        try:
             self.databases.update_document(self.db_id, self.queue_id, doc_id, data)
             print(f"[Appwrite] Updated {doc_id} to {status}")
         except Exception as e:
