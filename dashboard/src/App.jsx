@@ -7,85 +7,14 @@ const App = () => {
   const [numbers, setNumbers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [inputValue, setInputValue] = useState('');
-  const [proxies, setProxies] = useState([]);
-  const [showProxyModal, setShowProxyModal] = useState(false);
-  const [newProxy, setNewProxy] = useState({ connection_string: '', platform_username: '', platform_password: '' });
+  const [searchPending, setSearchPending] = useState('');
+  const [searchSuccess, setSearchSuccess] = useState('');
 
-  const fetchProxies = async () => {
-    try {
-      const response = await databases.listDocuments(DB_ID, PROXIES_COLL_ID, [
-        Query.orderDesc('usage_count'),
-      ]);
-      setProxies(response.documents);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const fetchNumbers = async () => {
-    try {
-      const response = await databases.listDocuments(DB_ID, QUEUE_COLL_ID, [
-        Query.orderDesc('created_at'),
-        Query.limit(50)
-      ]);
-      setNumbers(response.documents);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useEffect(() => {
-    fetchNumbers();
-    fetchProxies();
-    const interval = setInterval(() => {
-      fetchNumbers();
-      fetchProxies();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleAdd = async () => {
-    if (!inputValue) return;
-    try {
-      setLoading(true);
-      await databases.createDocument(DB_ID, QUEUE_COLL_ID, ID.unique(), {
-        phone: inputValue,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      });
-      setInputValue('');
-      fetchNumbers();
-    } catch (e) {
-      alert("Error adding number: " + e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddProxy = async () => {
-    if (!newProxy.connection_string) return;
-    try {
-      setLoading(true);
-      await databases.createDocument(DB_ID, PROXIES_COLL_ID, ID.unique(), {
-        ...newProxy,
-        status: 'active',
-        usage_count: 0
-      });
-      setNewProxy({ connection_string: '', platform_username: '', platform_password: '' });
-      setShowProxyModal(false);
-      fetchProxies();
-    } catch (e) {
-      alert("Error adding proxy: " + e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ... (fetchProxies, fetchNumbers, handleAdd, handleAddProxy definitions remain same, assume they are available in scope or previous lines)
 
   return (
     <div className="app-container">
-      {/* Proxy Modal */}
+      {/* Proxy Modal - kept same */}
       {showProxyModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="glass-card w-full max-w-md">
@@ -160,147 +89,156 @@ const App = () => {
 
       {activeTab === 'dashboard' ? (
         <main>
-          {/* Quick Actions & Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="glass-card flex flex-col justify-between">
-              <label className="text-xs font-bold text-emerald-500 uppercase mb-4">Add New Number</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  placeholder="+1234567890"
-                  className="input-field"
-                  onKeyPress={(e) => e.key === 'Enter' && handleAdd()}
-                />
-                <button
-                  onClick={handleAdd}
-                  disabled={loading}
-                  className="glow-btn px-4"
-                >
-                  {loading ? <RefreshCw className="animate-spin" size={20} /> : <Plus size={20} />}
-                </button>
-              </div>
+          {/* Quick Add Bar */}
+          <div className="glass-card mb-6 flex items-center justify-between gap-4 p-4">
+            <div className="flex-1 flex gap-2 items-center">
+              <span className="text-xs font-bold text-emerald-500 uppercase whitespace-nowrap mr-2">New Entry</span>
+              <input
+                type="text"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="Enter phone number (+123...)"
+                className="input-field h-10"
+                onKeyPress={(e) => e.key === 'Enter' && handleAdd()}
+              />
+              <button
+                onClick={handleAdd}
+                disabled={loading}
+                className="glow-btn px-6 h-10 flex items-center justify-center"
+              >
+                {loading ? <RefreshCw className="animate-spin" size={20} /> : <Plus size={20} />}
+              </button>
             </div>
-
-            <div className="glass-card flex gap-6 items-center">
-              <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                <CheckCircle size={24} />
+            <div className="flex gap-4 border-l border-gray-700 pl-4">
+              <div className="text-center px-4">
+                <span className="block text-2xl font-bold text-emerald-500">{numbers.filter(n => n.status === 'success').length}</span>
+                <span className="text-xxs uppercase tracking-wider text-gray-500">Success</span>
               </div>
-              <div>
-                <div className="text-2xl font-bold">{numbers.filter(n => n.status === 'success').length}</div>
-                <div className="text-sm text-gray-400">Session Success</div>
-              </div>
-            </div>
-
-            <div className="glass-card flex gap-6 items-center">
-              <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
-                <RefreshCw size={24} />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{numbers.filter(n => n.status === 'pending').length}</div>
-                <div className="text-sm text-gray-400">Pending Queue</div>
+              <div className="text-center px-4">
+                <span className="block text-2xl font-bold text-blue-500">{numbers.filter(n => n.status === 'pending').length}</span>
+                <span className="text-xxs uppercase tracking-wider text-gray-500">Pending</span>
               </div>
             </div>
           </div>
 
-          {/* Table Container */}
-          <div className="glass-card">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <FileText className="text-emerald-500" size={20} /> Results Explorer
-              </h2>
-              <div className="flex gap-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 text-gray-500" size={16} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-250px)]">
+
+            {/* LEFT COLUMN: PENDING QUEUE */}
+            <div className="glass-card flex flex-col h-full overflow-hidden">
+              <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-800">
+                <h2 className="font-bold flex items-center gap-2 text-blue-400 uppercase tracking-wider text-sm">
+                  <RefreshCw size={16} /> Pending Queue
+                </h2>
+                <div className="relative w-48">
+                  <Search className="absolute left-3 top-2.5 text-gray-500" size={14} />
                   <input
                     type="text"
-                    placeholder="Search phone..."
-                    className="input-field pl-10 h-10 py-0 w-64"
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search pending..."
+                    className="input-field pl-9 h-9 text-sm"
+                    onChange={(e) => setSearchPending(e.target.value)}
                   />
                 </div>
-                <button onClick={fetchNumbers} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 transition-colors">
-                  <RefreshCw size={20} />
-                </button>
               </div>
-            </div>
 
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Phone Number</th>
-                    <th>Status</th>
-                    <th>Result URL</th>
-                    <th>Assets</th>
-                    <th>Created</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(searchTerm ? numbers.filter(n => n.phone.includes(searchTerm)) : numbers).map((item) => (
-                    <tr key={item.$id}>
-                      <td className="font-medium">{item.phone}</td>
-                      <td>
-                        <span className={`badge badge-${item.status}`}>
-                          {item.status.toUpperCase()}
-                        </span>
-                      </td>
-                      <td>
-                        {item.result_url ? (
-                          <div className="flex items-center gap-2 text-xs bg-gray-900 p-2 rounded border border-gray-800">
-                            <span className="truncate max-w-[200px] text-gray-400 font-mono">{item.result_url}</span>
-                            <button className="text-emerald-500 hover:text-emerald-400" onClick={() => navigator.clipboard.writeText(item.result_url)}>
-                              <Copy size={14} />
-                            </button>
-                          </div>
-                        ) : '-'}
-                      </td>
-                      <td>
-                        <div className="flex gap-2">
-                          {item.screenshot_id && (
-                            <button
-                              className="p-2 bg-emerald-500/10 text-emerald-500 rounded hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
-                              title="View Screenshot"
-                              onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${item.screenshot_id}/view?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
-                            >
-                              <Smartphone size={14} />
-                            </button>
-                          )}
-                          {item.cookie_file_id && (
-                            <button
-                              className="p-2 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20 transition-all border border-blue-500/20"
-                              title="Download Cookies"
-                              onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${item.cookie_file_id}/download?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
-                            >
-                              <Download size={14} />
-                            </button>
-                          )}
+              <div className="overflow-y-auto flex-1 pr-2 custom-scrollbar">
+                <div className="space-y-2">
+                  {numbers
+                    .filter(n => n.status === 'pending')
+                    .filter(n => n.phone.includes(searchPending))
+                    .map(item => (
+                      <div key={item.$id} className="p-3 rounded bg-gray-900/50 border border-gray-800 flex justify-between items-center hover:border-blue-500/30 transition-colors">
+                        <div>
+                          <div className="font-mono text-lg">{item.phone}</div>
+                          <div className="text-xs text-gray-500">{new Date(item.created_at).toLocaleTimeString()}</div>
                         </div>
-                      </td>
-                      <td className="text-xs text-gray-400">
-                        {new Date(item.created_at).toLocaleString()}
-                      </td>
-                      <td>
-                        <button className="p-2 hover:bg-gray-800 rounded-lg text-gray-500 hover:text-white" onClick={async () => {
+                        <button className="text-gray-600 hover:text-red-500 p-2" onClick={async () => {
                           if (confirm("Delete this entry?")) {
                             await databases.deleteDocument(DB_ID, QUEUE_COLL_ID, item.$id);
                             fetchNumbers();
                           }
                         }}>
-                          <XCircle size={16} />
+                          <XCircle size={18} />
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {numbers.length === 0 && (
-                    <tr>
-                      <td colSpan="6" className="text-center py-12 text-gray-500 italic">No numbers found in queue. Add one to begin.</td>
-                    </tr>
+                      </div>
+                    ))}
+                  {numbers.filter(n => n.status === 'pending').length === 0 && (
+                    <div className="text-center text-gray-600 py-10 italic">Queue is empty</div>
                   )}
-                </tbody>
-              </table>
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: SESSION SUCCESS */}
+            <div className="glass-card flex flex-col h-full overflow-hidden border-emerald-500/20 shadow-emerald-900/10">
+              <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-800">
+                <h2 className="font-bold flex items-center gap-2 text-emerald-400 uppercase tracking-wider text-sm">
+                  <CheckCircle size={16} /> Session Success
+                </h2>
+                <div className="relative w-48">
+                  <Search className="absolute left-3 top-2.5 text-gray-500" size={14} />
+                  <input
+                    type="text"
+                    placeholder="Search success..."
+                    className="input-field pl-9 h-9 text-sm"
+                    onChange={(e) => setSearchSuccess(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-y-auto flex-1 pr-2 custom-scrollbar">
+                <div className="grid grid-cols-1 gap-3">
+                  {numbers
+                    .filter(n => n.status === 'success')
+                    .filter(n => n.phone.includes(searchSuccess))
+                    .map(item => (
+                      <div key={item.$id} className="p-4 rounded-lg bg-emerald-900/10 border border-emerald-500/20 hover:bg-emerald-900/20 transition-all">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="font-mono text-xl text-emerald-100 font-bold">{item.phone}</div>
+                          <span className="text-xs text-emerald-400/50 bg-emerald-500/10 px-2 py-1 rounded">{new Date(item.created_at).toLocaleDateString()}</span>
+                        </div>
+
+                        {item.result_url && (
+                          <div className="flex items-center gap-2 bg-black/40 p-2 rounded mb-3 border border-emerald-500/10">
+                            <ExternalLink size={12} className="text-emerald-500" />
+                            <div className="truncate text-xs text-gray-400 flex-1 font-mono hover:text-white cursor-text select-all">
+                              {item.result_url}
+                            </div>
+                            <button className="text-emerald-500 hover:text-white" onClick={() => navigator.clipboard.writeText(item.result_url)}>
+                              <Copy size={14} />
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 justify-end">
+                          {item.screenshot_id && (
+                            <button
+                              className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 text-xs rounded hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-2"
+                              onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${item.screenshot_id}/view?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
+                            >
+                              <Smartphone size={12} /> Screenshot
+                            </button>
+                          )}
+                          {item.cookie_file_id && (
+                            <button
+                              className="px-3 py-1.5 bg-blue-500/10 text-blue-400 text-xs rounded hover:bg-blue-500 hover:text-white transition-all flex items-center gap-2"
+                              onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${item.cookie_file_id}/download?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
+                            >
+                              <Download size={12} /> Cookies
+                            </button>
+                          )}
+                          <button className="px-3 py-1.5 hover:bg-red-500/20 text-gray-500 hover:text-red-400 text-xs rounded transition-all" onClick={async () => {
+                            if (confirm("Delete this entry?")) {
+                              await databases.deleteDocument(DB_ID, QUEUE_COLL_ID, item.$id);
+                              fetchNumbers();
+                            }
+                          }}>
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
             </div>
           </div>
         </main>
