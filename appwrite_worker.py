@@ -103,7 +103,7 @@ class AppwriteWorkerClient:
     def update_status(self, doc_id, status, result_url=None, error_reason=None, screenshot_path=None, cookies_json=None, logs=None):
         """Update the status and upload assets"""
         data = {"status": status}
-        if result_url: data["result_url"] = result_url
+        # if result_url: data["result_url"] = result_url  # Disabled: Attribute missing in DB schema
         if error_reason: data["error_reason"] = error_reason[:500]
         if logs: data["logs"] = logs[-8000:]
         
