@@ -15,14 +15,25 @@ ENDPOINT = os.environ.get("APPWRITE_ENDPOINT", "https://cloud.appwrite.io/v1")
 PROJECT_ID = os.environ.get("APPWRITE_PROJECT_ID")
 API_KEY = os.environ.get("APPWRITE_API_KEY")
 
-if not PROJECT_ID or not API_KEY:
-    print("[FATAL] Appwrite credentials missing. Set APPWRITE_PROJECT_ID and APPWRITE_API_KEY.")
+print("[DEBUG] main_worker: Imports complete.", flush=True)
+
+timeout_start = time.time()
+while not PROJECT_ID or not API_KEY:
+    if time.time() - timeout_start > 5:
+        print("[FATAL] Appwrite credentials missing. Set APPWRITE_PROJECT_ID and APPWRITE_API_KEY.", flush=True)
+        sys.exit(1)
+    time.sleep(1)
+
+print("[DEBUG] main_worker: Credentials found. Initializing Client...", flush=True)
+try:
+    worker = AppwriteWorkerClient(ENDPOINT, PROJECT_ID, API_KEY)
+    print("[DEBUG] main_worker: Client initialized.", flush=True)
+except Exception as e:
+    print(f"[FATAL] Client init failed: {e}", flush=True)
     sys.exit(1)
 
-worker = AppwriteWorkerClient(ENDPOINT, PROJECT_ID, API_KEY)
-
 def main():
-    print(f"[*] Worker started. Polling Appwrite at {ENDPOINT}...")
+    print(f"[*] Worker started. Polling Appwrite at {ENDPOINT}...", flush=True)
     
     while True:
         try:
