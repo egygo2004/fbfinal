@@ -45,70 +45,87 @@ def main():
                 phone = task['phone']
                 print(f"\n[+] Processing: {phone}")
                 worker.update_status(doc_id, "processing")
+                worker.append_log(doc_id, "🚀 Started processing")
                 
-                success = False
-                retry_count = 0
-                max_retries = 3 # Try with up to 3 different proxies
-                
-                while not success and retry_count < max_retries:
-                    # 2. Get Best Proxy
-                    proxy = worker.get_best_proxy()
-                    if not proxy:
-                        print("[!] No active proxies available in pool!")
-                        worker.update_status(doc_id, "failed", error_reason="No active proxies available")
-                        break
+                try:
+                    success = False
+                    retry_count = 0
+                    max_retries = 3
                     
-                    print(f"[*] Using Proxy: {proxy['host']} (Try {retry_count+1})")
-                    
-                    # 3. Run Flow
-                    bot = FacebookOTPBrowser(headless=True)
-                    bot.PROXY_CONFIG = proxy # Inject selected proxy
-                    
-                    try:
-                        flow_result = bot.run_flow(phone)
-                        if flow_result:
-                            success = True
-                            print("[✓] Flow successful!")
-                            worker.report_proxy_usage(proxy['id'], True)
+                    while not success and retry_count < max_retries:
+                        # 2. Get Best Proxy
+                        proxy = worker.get_best_proxy()
+                        if not proxy:
+                            print("[!] No active proxies available in pool!")
+                            worker.append_log(doc_id, "❌ No active proxies available")
+                            worker.update_status(doc_id, "failed", error_reason="NO_PROXIES")
+                            break
+                        
+                        worker.append_log(doc_id, f"🌐 Using proxy: {proxy['host']} (attempt {retry_count+1})")
+                        print(f"[*] Using Proxy: {proxy['host']} (Try {retry_count+1})")
+                        
+                        # 3. Run Flow
+                        bot = FacebookOTPBrowser(headless=True)
+                        bot.PROXY_CONFIG = proxy
+                        
+                        try:
+                            worker.append_log(doc_id, "🔧 Setting up browser...")
+                            flow_result = bot.run_flow(phone)
                             
-                            # Finalize assets
-                            screenshot = None
-                            files = os.listdir('.')
-                            shots = sorted([f for f in files if f.startswith('step_success')], reverse=True)
-                            if shots: screenshot = shots[0]
-                            
-                            cookies = bot.driver.get_cookies() # Get fresh cookies from driver
+                            if flow_result:
+                                success = True
+                                print("[✓] Flow successful!")
+                                worker.append_log(doc_id, "✅ OTP sent successfully!")
+                                worker.report_proxy_usage(proxy['id'], True)
+                                
+                                # Finalize assets
+                                screenshot = None
+                                files = os.listdir('.')
+                                shots = sorted([f for f in files if f.startswith('step_success')], reverse=True)
+                                if shots: screenshot = shots[0]
+                                
+                                cookies = bot.driver.get_cookies()
+                                worker.append_log(doc_id, "📦 Saving cookies and screenshot...")
 
-                            worker.update_status(
-                                doc_id, 
-                                "success", 
-                                result_url=bot.driver.current_url,
-                                screenshot_path=screenshot,
-                                cookies_json=cookies
-                            )
-                            if screenshot: os.remove(screenshot)
-                        else:
-                            print("[X] Flow failed (SMS not found or logic error)")
-                            # Get last screenshot for failed cases
-                            screenshot = None
-                            files = os.listdir('.')
-                            shots = sorted([f for f in files if f.startswith('step_')], reverse=True)
-                            if shots: screenshot = shots[0]
+                                worker.update_status(
+                                    doc_id, 
+                                    "success", 
+                                    result_url=bot.driver.current_url,
+                                    screenshot_path=screenshot,
+                                    cookies_json=cookies
+                                )
+                                if screenshot: os.remove(screenshot)
+                            else:
+                                print("[X] Flow failed (SMS not found or logic error)")
+                                worker.append_log(doc_id, "❌ SMS option not found")
+                                
+                                # Get last screenshot for failed cases
+                                screenshot = None
+                                files = os.listdir('.')
+                                shots = sorted([f for f in files if f.startswith('step_')], reverse=True)
+                                if shots: screenshot = shots[0]
+                                
+                                worker.update_status(doc_id, "failed", error_reason="SMS_NOT_FOUND", screenshot_path=screenshot)
+                                if screenshot: 
+                                    try: os.remove(screenshot)
+                                    except: pass
+                                break
+                                
+                        except Exception as flow_err:
+                            print(f"[!] Browser/Proxy Error: {flow_err}")
+                            worker.append_log(doc_id, f"⚠️ Error: {str(flow_err)[:100]}")
+                            worker.report_proxy_usage(proxy['id'], False)
+                            retry_count += 1
+                            time.sleep(2)
+                        finally:
+                            try: bot.driver.quit()
+                            except: pass
                             
-                            worker.update_status(doc_id, "failed", error_reason="SMS_NOT_FOUND", screenshot_path=screenshot)
-                            if screenshot: 
-                                try: os.remove(screenshot)
-                                except: pass
-                            break # Don't retry different proxies if it's just a Facebook logic failure
-                            
-                    except Exception as flow_err:
-                        print(f"[!] Browser/Proxy Error: {flow_err}")
-                        worker.report_proxy_usage(proxy['id'], False) # Mark as FAILED
-                        retry_count += 1
-                        time.sleep(2)
-                    finally:
-                        try: bot.driver.quit()
-                        except: pass
+                except Exception as task_err:
+                    # Catch-all to ensure status is updated
+                    print(f"[!] Task Error: {task_err}")
+                    worker.append_log(doc_id, f"💥 Crashed: {str(task_err)[:100]}")
+                    worker.update_status(doc_id, "failed", error_reason=f"CRASH: {str(task_err)[:50]}")
             
             else:
                 # No tasks, sleep

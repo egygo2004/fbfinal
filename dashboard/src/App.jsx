@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Settings, RefreshCw, Smartphone, CheckCircle, XCircle, Search, Copy, Download, ExternalLink, Clock, Zap, Shield, Trash2 } from 'lucide-react';
+import { Plus, Settings, RefreshCw, Smartphone, CheckCircle, XCircle, Search, Copy, Download, ExternalLink, Clock, Zap, Shield, Trash2, X, Eye } from 'lucide-react';
 import { databases, QUEUE_COLL_ID, DB_ID, PROXIES_COLL_ID, ASSETS_BUCKET_ID } from './appwrite';
 import { ID, Query } from 'appwrite';
 
@@ -13,6 +13,7 @@ const App = () => {
   const [showProxyModal, setShowProxyModal] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [newProxy, setNewProxy] = useState({ connection_string: '', platform_username: '', platform_password: '' });
+  const [selectedItem, setSelectedItem] = useState(null); // For logs modal
 
   // Fetch numbers from Appwrite
   const fetchNumbers = async () => {
@@ -99,7 +100,60 @@ const App = () => {
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
       </div>
 
-      <div className="relative max-w-7xl mx-auto">
+      <div className="relative w-full px-4">
+        {/* Logs Modal */}
+        {selectedItem && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-2xl shadow-2xl max-h-[80vh] flex flex-col">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-xl font-bold font-mono text-emerald-400">{selectedItem.phone}</h3>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${selectedItem.status === 'success' ? 'bg-emerald-500/20 text-emerald-400' : selectedItem.status === 'failed' ? 'bg-red-500/20 text-red-400' : selectedItem.status === 'processing' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                    {selectedItem.status?.toUpperCase()}
+                  </span>
+                </div>
+                <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-800 rounded-lg">
+                  <X size={20} />
+                </button>
+              </div>
+
+              {selectedItem.error_reason && (
+                <div className="bg-red-500/10 text-red-400 px-3 py-2 rounded-lg text-sm font-mono mb-4">
+                  ❌ {selectedItem.error_reason}
+                </div>
+              )}
+
+              <div className="flex-1 overflow-y-auto bg-gray-950 rounded-lg p-4 font-mono text-sm">
+                <div className="text-gray-400 text-xs mb-2">📋 Processing Logs:</div>
+                {selectedItem.logs ? (
+                  <pre className="whitespace-pre-wrap text-gray-300">{selectedItem.logs}</pre>
+                ) : (
+                  <div className="text-gray-600 italic">No logs available yet...</div>
+                )}
+              </div>
+
+              <div className="flex gap-2 mt-4 justify-end">
+                {selectedItem.screenshot_id && (
+                  <button
+                    className="px-4 py-2 bg-emerald-500/10 text-emerald-400 text-sm rounded-lg hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-2"
+                    onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${selectedItem.screenshot_id}/view?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
+                  >
+                    <Smartphone size={14} /> View Screenshot
+                  </button>
+                )}
+                {selectedItem.cookie_file_id && (
+                  <button
+                    className="px-4 py-2 bg-blue-500/10 text-blue-400 text-sm rounded-lg hover:bg-blue-500 hover:text-white transition-all flex items-center gap-2"
+                    onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${selectedItem.cookie_file_id}/download?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
+                  >
+                    <Download size={14} /> Download Cookies
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Proxy Modal */}
         {showProxyModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -258,7 +312,7 @@ const App = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" style={{ height: 'calc(100vh - 380px)' }}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1" style={{ minHeight: 'calc(100vh - 320px)' }}>
               {/* LEFT: PENDING QUEUE */}
               <div className="bg-gray-900/50 border border-gray-800 rounded-xl flex flex-col overflow-hidden">
                 <div className="flex justify-between items-center p-4 border-b border-gray-800">
@@ -271,24 +325,38 @@ const App = () => {
                     {numbers
                       .filter(n => n.status === 'pending' || n.status === 'processing')
                       .map(item => (
-                        <div key={item.$id} className={`p-3 rounded-lg border flex justify-between items-center transition-all ${item.status === 'processing' ? 'bg-yellow-500/10 border-yellow-500/30 animate-pulse' : 'bg-gray-800/50 border-gray-700'}`}>
+                        <div
+                          key={item.$id}
+                          className={`p-3 rounded-lg border flex justify-between items-center transition-all cursor-pointer hover:scale-[1.02] ${item.status === 'processing' ? 'bg-yellow-500/10 border-yellow-500/30 animate-pulse' : 'bg-gray-800/50 border-gray-700 hover:border-blue-500/50'}`}
+                          onClick={() => setSelectedItem(item)}
+                        >
                           <div>
                             <div className="font-mono text-sm font-semibold">{item.phone}</div>
                             <span className={`text-xs px-2 py-0.5 rounded-full ${item.status === 'processing' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`}>
                               {item.status?.toUpperCase()}
                             </span>
                           </div>
-                          <button
-                            className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-all"
-                            onClick={async () => {
-                              if (confirm("Delete?")) {
-                                await databases.deleteDocument(DB_ID, QUEUE_COLL_ID, item.$id);
-                                fetchNumbers();
-                              }
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          <div className="flex gap-1">
+                            <button
+                              className="p-1.5 text-blue-400 hover:bg-blue-500/20 rounded transition-all"
+                              onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                              title="View Logs"
+                            >
+                              <Eye size={14} />
+                            </button>
+                            <button
+                              className="p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-all"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (confirm("Delete?")) {
+                                  await databases.deleteDocument(DB_ID, QUEUE_COLL_ID, item.$id);
+                                  fetchNumbers();
+                                }
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     {numbers.filter(n => n.status === 'pending' || n.status === 'processing').length === 0 && (
@@ -310,13 +378,17 @@ const App = () => {
                     {numbers
                       .filter(n => n.status === 'success')
                       .map(item => (
-                        <div key={item.$id} className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-all">
+                        <div
+                          key={item.$id}
+                          className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-all cursor-pointer hover:scale-[1.01]"
+                          onClick={() => setSelectedItem(item)}
+                        >
                           <div className="flex justify-between items-start mb-2">
                             <div className="font-mono text-base text-emerald-100 font-bold">{item.phone}</div>
                             <span className="text-xs text-emerald-400/60">{item.created_at ? new Date(item.created_at).toLocaleTimeString() : ''}</span>
                           </div>
                           {item.result_url && (
-                            <div className="flex items-center gap-2 bg-black/30 p-2 rounded mb-2 border border-emerald-500/10">
+                            <div className="flex items-center gap-2 bg-black/30 p-2 rounded mb-2 border border-emerald-500/10" onClick={e => e.stopPropagation()}>
                               <ExternalLink size={12} className="text-emerald-500 flex-shrink-0" />
                               <span className="truncate text-xs text-gray-400 flex-1 font-mono">{item.result_url}</span>
                               <button className="text-emerald-500 hover:text-white" onClick={() => navigator.clipboard.writeText(item.result_url)}>
@@ -324,7 +396,13 @@ const App = () => {
                               </button>
                             </div>
                           )}
-                          <div className="flex gap-1.5 flex-wrap">
+                          <div className="flex gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
+                            <button
+                              className="px-2 py-1 bg-blue-500/10 text-blue-400 text-xs rounded hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1"
+                              onClick={() => setSelectedItem(item)}
+                            >
+                              <Eye size={10} /> Logs
+                            </button>
                             {item.screenshot_id && (
                               <button
                                 className="px-2 py-1 bg-emerald-500/10 text-emerald-400 text-xs rounded hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1"
@@ -374,7 +452,11 @@ const App = () => {
                     {numbers
                       .filter(n => n.status === 'failed')
                       .map(item => (
-                        <div key={item.$id} className="p-3 rounded-lg bg-red-500/5 border border-red-500/20 hover:bg-red-500/10 transition-all">
+                        <div
+                          key={item.$id}
+                          className="p-3 rounded-lg bg-red-500/5 border border-red-500/20 hover:bg-red-500/10 transition-all cursor-pointer hover:scale-[1.01]"
+                          onClick={() => setSelectedItem(item)}
+                        >
                           <div className="flex justify-between items-start mb-2">
                             <div className="font-mono text-base text-red-100 font-bold">{item.phone}</div>
                             <span className="text-xs text-red-400/60">{item.created_at ? new Date(item.created_at).toLocaleTimeString() : ''}</span>
@@ -384,7 +466,13 @@ const App = () => {
                               ❌ {item.error_reason}
                             </div>
                           )}
-                          <div className="flex gap-1.5 flex-wrap">
+                          <div className="flex gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
+                            <button
+                              className="px-2 py-1 bg-blue-500/10 text-blue-400 text-xs rounded hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1"
+                              onClick={() => setSelectedItem(item)}
+                            >
+                              <Eye size={10} /> Logs
+                            </button>
                             {item.screenshot_id && (
                               <button
                                 className="px-2 py-1 bg-red-500/10 text-red-400 text-xs rounded hover:bg-red-500 hover:text-white transition-all flex items-center gap-1"

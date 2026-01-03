@@ -88,11 +88,24 @@ class AppwriteWorkerClient:
         except Exception as e:
             print(f"[Appwrite] Error reporting proxy: {e}")
 
-    def update_status(self, doc_id, status, result_url=None, error_reason=None, screenshot_path=None, cookies_json=None):
+    def append_log(self, doc_id, message):
+        """Append a log entry to track progress"""
+        try:
+            doc = self.databases.get_document(self.db_id, self.queue_id, doc_id)
+            existing_logs = doc.get("logs", "") or ""
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            new_log = f"[{timestamp}] {message}\n"
+            updated_logs = (existing_logs + new_log)[-8000:]  # Keep last 8000 chars
+            self.databases.update_document(self.db_id, self.queue_id, doc_id, {"logs": updated_logs})
+        except Exception as e:
+            print(f"[Appwrite] Log append error: {e}")
+
+    def update_status(self, doc_id, status, result_url=None, error_reason=None, screenshot_path=None, cookies_json=None, logs=None):
         """Update the status and upload assets"""
         data = {"status": status}
         if result_url: data["result_url"] = result_url
         if error_reason: data["error_reason"] = error_reason[:500]
+        if logs: data["logs"] = logs[-8000:]
         
         try:
             # Upload Screenshot
