@@ -264,9 +264,11 @@ class FacebookOTPBrowser:
     def send_telegram_photo(self, caption, file_path):
         if not self.telegram_token or not self.telegram_chat_id: return
         try:
+            log("Sending Telegram photo...", "INFO")
             url = f"https://api.telegram.org/bot{self.telegram_token}/sendPhoto"
             with open(file_path, "rb") as f:
-                requests.post(url, files={"photo": f}, data={"chat_id": self.telegram_chat_id, "caption": caption})
+                requests.post(url, files={"photo": f}, data={"chat_id": self.telegram_chat_id, "caption": caption}, timeout=10)
+            log("Telegram photo sent!", "INFO")
         except Exception as e: log(f"Telegram error: {e}", "WARN")
 
     def check_ip(self):
