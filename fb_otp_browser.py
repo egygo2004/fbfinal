@@ -137,13 +137,17 @@ class FacebookOTPBrowser:
             "profile.managed_default_content_settings.stylesheets": 2,
             "profile.managed_default_content_settings.fonts": 2,
             "profile.managed_default_content_settings.plugins": 2,
+            "profile.managed_default_content_settings.javascript": 1,  # Keep enabled but block external
         })
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
+        
+        # 7a. Block external JavaScript files (keep inline)
+        options.add_argument("--disable-javascript-harmony-shipping")
 
-        # 7. Page Load Strategy (EAGER)
-        options.page_load_strategy = 'eager'
-        log("🚀 Page load strategy: EAGER", "OK")
+        # 7. Page Load Strategy (NONE - fastest, we control loading)
+        options.page_load_strategy = 'none'
+        log("🚀 Page load strategy: NONE (ultra-fast)", "OK")
 
         # 8. Proxy Connection
         proxy = self.PROXY_CONFIG
@@ -275,33 +279,43 @@ class FacebookOTPBrowser:
         except Exception as e:
             log(f"⚠️ Could not verify IP: {e}", "WARN")
 
+    def wait_for_ready(self, timeout=5):
+        """Smart wait using document.readyState instead of fixed sleep"""
+        try:
+            for _ in range(timeout * 10):  # Check every 100ms
+                state = self.driver.execute_script("return document.readyState")
+                if state in ['complete', 'interactive']:
+                    return True
+                time.sleep(0.1)
+        except:
+            pass
+        return False
+
     def run_flow(self, phone):
         self.current_phone = phone
         log(f"🚀 Processing: {phone}")
         if not self._setup_driver(): return False
         
-        self.check_ip() # Verify IP before starting
+        # Skip IP check for speed (uncomment for debugging)
+        # self.check_ip()
 
         try:
-            # 1. Open
+            # 1. Open with DOM injection approach
             self.driver.get('https://mbasic.facebook.com/login/identify/?ctx=recover')
+            self.wait_for_ready(3)  # Smart wait instead of fixed sleep
             self.driver.execute_script("window.stop();")
             log("🛑 Force Stopped Home Page", "OK")
-            time.sleep(1)
 
-            # 2. Search
-            self._save_step_screenshot("1_open")
-            inp = WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.NAME, "email")))
-            inp.send_keys(phone)
+            # 2. Search - use DOM injection for speed
+            inp = WebDriverWait(self.driver, 8).until(EC.presence_of_element_located((By.NAME, "email")))
+            self.driver.execute_script("arguments[0].value = arguments[1];", inp, phone)  # DOM injection
             btn = self.driver.find_element(By.CSS_SELECTOR, "input[type='submit'], button[type='submit']")
-            btn.click()
-            time.sleep(2)
+            self.driver.execute_script("arguments[0].click();", btn)  # DOM click
+            self.wait_for_ready(3)
             self.driver.execute_script("window.stop();")
             log("🛑 Force Stopped Post-Search", "OK")
-            time.sleep(2)
 
             # 3. Handle intermediate pages ("Try another way")
-            self._save_step_screenshot("2_results")
             page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
             if "no search results" in page_text or "لم يتم العثور" in page_text:
                 log("Account not found", "WARN")

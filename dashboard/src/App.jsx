@@ -70,13 +70,26 @@ const App = () => {
     setLoading(false);
   };
 
-  // Add new proxy
+  // Add new proxy - supports user:pass@host:port format
   const handleAddProxy = async () => {
-    if (!newProxy.connection_string.trim()) return;
+    const input = newProxy.connection_string.trim();
+    if (!input) return;
     setLoading(true);
     try {
+      let connectionString = input;
+
+      // Parse user:pass@host:port format
+      if (input.includes('@')) {
+        const [userPass, hostPort] = input.split('@');
+        const [user, pass] = userPass.split(':');
+        const [host, port] = hostPort.split(':');
+        if (user && pass && host && port) {
+          connectionString = `${host}:${port}:${user}:${pass}`;
+        }
+      }
+
       await databases.createDocument(DB_ID, PROXIES_COLL_ID, ID.unique(), {
-        connection_string: newProxy.connection_string,
+        connection_string: connectionString,
         platform_username: newProxy.platform_username || null,
         platform_password: newProxy.platform_password || null,
         status: 'active',
@@ -179,11 +192,12 @@ const App = () => {
                   <label className="text-xs font-bold text-gray-400 uppercase block mb-2">Connection String *</label>
                   <input
                     type="text"
-                    placeholder="host:port:user:pass"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
+                    placeholder="user:pass@host:port"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all font-mono text-sm"
                     value={newProxy.connection_string}
                     onChange={(e) => setNewProxy({ ...newProxy, connection_string: e.target.value })}
                   />
+                  <div className="text-xs text-gray-500 mt-1">Format: user:pass@host:port (e.g., nNcDyyf3Pi:mobile;us;@proxy.soax.com:9000)</div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
