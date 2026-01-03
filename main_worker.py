@@ -78,23 +78,38 @@ def main():
                                 worker.append_log(doc_id, "✅ OTP sent successfully!")
                                 worker.report_proxy_usage(proxy['id'], True)
                                 
-                                # Finalize assets
+                                # Finalize assets - wrap in try-except
                                 screenshot = None
-                                files = os.listdir('.')
-                                shots = sorted([f for f in files if f.startswith('step_success')], reverse=True)
-                                if shots: screenshot = shots[0]
+                                cookies = None
+                                result_url = None
                                 
-                                cookies = bot.driver.get_cookies()
+                                try:
+                                    files = os.listdir('.')
+                                    shots = sorted([f for f in files if f.startswith('step_success')], reverse=True)
+                                    if shots: screenshot = shots[0]
+                                except: pass
+                                
+                                try:
+                                    cookies = bot.driver.get_cookies()
+                                    result_url = bot.driver.current_url
+                                except Exception as e:
+                                    print(f"[!] Could not get cookies/URL: {e}")
+                                
                                 worker.append_log(doc_id, "📦 Saving cookies and screenshot...")
-
+                                print(f"[*] Calling update_status with status=success")
+                                
                                 worker.update_status(
                                     doc_id, 
                                     "success", 
-                                    result_url=bot.driver.current_url,
+                                    result_url=result_url,
                                     screenshot_path=screenshot,
                                     cookies_json=cookies
                                 )
-                                if screenshot: os.remove(screenshot)
+                                print(f"[*] update_status completed!")
+                                
+                                if screenshot: 
+                                    try: os.remove(screenshot)
+                                    except: pass
                             else:
                                 print("[X] Flow failed (SMS not found or logic error)")
                                 worker.append_log(doc_id, "❌ Flow returned false - updating status to failed")
