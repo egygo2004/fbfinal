@@ -400,6 +400,113 @@ class FacebookOTPBrowser:
             return False
         # Note: driver.quit() is NOT called on success - main_worker handles it
 
+    def run_flow_reuse(self, phone):
+        """Run flow using existing browser instance (for speed optimization)"""
+        self.current_phone = phone
+        log(f"🚀 Processing (reuse): {phone}")
+        
+        if not self.driver:
+            log("No driver available for reuse!", "ERROR")
+            return False
+        
+        try:
+            # Navigate to start URL (browser already exists)
+            self.driver.get('https://mbasic.facebook.com/login/identify/?ctx=recover')
+            self.wait_for_ready(3)
+            self.driver.execute_script("window.stop();")
+            log("🛑 Force Stopped Home Page", "OK")
+
+            # 2. Search - use DOM injection for speed
+            inp = WebDriverWait(self.driver, 8).until(EC.presence_of_element_located((By.NAME, "email")))
+            self.driver.execute_script("arguments[0].value = arguments[1];", inp, phone)
+            btn = self.driver.find_element(By.CSS_SELECTOR, "input[type='submit'], button[type='submit']")
+            self.driver.execute_script("arguments[0].click();", btn)
+            self.wait_for_ready(3)
+            self.driver.execute_script("window.stop();")
+            log("🛑 Force Stopped Post-Search", "OK")
+
+            # 3. Handle intermediate pages ("Try another way")
+            keywords = ["try another", "another way", "طريقة أخرى"]
+            for _ in range(3):
+                page_src = self.driver.page_source.lower()
+                found = False
+                for kw in keywords:
+                    if kw in page_src:
+                        try:
+                            btns = self.driver.find_elements(By.CSS_SELECTOR, "a, button")
+                            for btn in btns:
+                                if kw.split()[0] in btn.text.lower():
+                                    btn.click()
+                                    time.sleep(1.5)
+                                    self.driver.execute_script("window.stop();")
+                                    log(f"Clicked: {kw}", "OK")
+                                    found = True
+                                    break
+                        except: continue
+                    if found: break
+                if not found: break
+
+            # 4. Selection
+            self.driver.execute_script("window.stop();")
+            self._save_step_screenshot("3_selection")
+            
+            sms_found = False
+            # Check Radios
+            radios = self.driver.find_elements(By.CSS_SELECTOR, "input[type='radio']")
+            for r in radios:
+                try:
+                    parent = r.find_element(By.XPATH, "./..")
+                    txt = parent.text.lower()
+                    if any(k in txt for k in ["sms", "text", "رسالة", "phone"]):
+                        self.driver.execute_script("arguments[0].click();", r)
+                        sms_found = True
+                        log("SMS radio selected", "OK")
+                        break
+                except: pass
+            
+            if not sms_found: # Fallback text click
+                clickable = self.driver.find_elements(By.CSS_SELECTOR, "div[role='button'], span, label")
+                for el in clickable:
+                    if any(k in el.text.lower() for k in ["text message", "sms", "رسالة نصية"]):
+                        el.click()
+                        sms_found = True
+                        log("SMS text selected", "OK")
+                        break
+            
+            if not sms_found:
+                log("❌ SMS Option NOT FOUND", "ERROR")
+                return False
+
+            # Submit Selection
+            time.sleep(1)
+            btns = self.driver.find_elements(By.CSS_SELECTOR, "button[type='submit'], input[type='submit']")
+            for b in btns:
+                try:
+                    self.driver.execute_script("arguments[0].click();", b)
+                    log("Clicked submit", "OK")
+                    break
+                except: continue
+            
+            time.sleep(2)
+            self.driver.execute_script("window.stop();")
+
+            # 5. Verify Success
+            current_url = self.driver.current_url
+            if "recover/code" in current_url or "enter code" in self.driver.page_source.lower():
+                log("🎉 SUCCESS: OTP SENT!", "SUCCESS")
+                log(f"📱 URL: {current_url}")
+                self._save_step_screenshot("success")
+                return True
+            else:
+                log("Failed to verify OTP sent", "ERROR")
+                self._save_step_screenshot("fail_verify")
+                return False
+
+        except Exception as e:
+            log(f"Flow Reuse Error: {e}", "ERROR")
+            # Don't quit driver - let main_worker decide
+            return False
+
 def main():
     target = sys.argv[1] if len(sys.argv) > 1 else None
     if not target: return

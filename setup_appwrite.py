@@ -158,26 +158,5 @@ def setup():
 
     print(f"\n[OK] Setup finished successfully!")
 
-    # 5. Clean up existing data (WIPE)
-    try:
-        print("\n[*] Wiping all existing documents in numbers_queue...")
-        # Note: listing limit is 5000 in logs, retrieving loops if needed
-        while True:
-            # Using list_documents for now, ignoring deprecation for cleanup script simplicity
-            # For 2024/2025 SDKs, verify if list_documents handles pagination
-            docs = databases.list_documents(DB_ID, COLL_QUEUE_ID, queries=[])
-            if docs['total'] == 0: break
-            
-            for d in docs['documents']:
-                try: 
-                    databases.delete_document(DB_ID, COLL_QUEUE_ID, d['$id'])
-                    print(f"  - Deleted {d['$id']}")
-                except: pass
-            
-            if len(docs['documents']) < 25: break # End of list
-        print("[+] Wipe complete.")
-    except Exception as e:
-        print(f"[!] Wipe error: {e}")
-
 if __name__ == "__main__":
     setup()
