@@ -165,13 +165,24 @@ class FacebookOTPBrowser:
 
         # 9. Initialize WebDriver
         try:
+            # Priority order for chromedriver:
+            # 1. CHROMEDRIVER_PATH environment variable
+            # 2. Chrome for Testing path (Heroku buildpack)
+            # 3. webdriver_manager (local development)
             driver_path = os.environ.get("CHROMEDRIVER_PATH")
+            chrome_for_testing_driver = "/app/.chrome-for-testing/chromedriver-linux64/chromedriver"
+            
             service = None
             if driver_path and os.path.exists(driver_path):
                 log(f"Using Chromedriver: {driver_path}")
                 os.chmod(driver_path, 0o755)
                 service = Service(driver_path)
+            elif os.path.exists(chrome_for_testing_driver):
+                log(f"Using Chrome for Testing driver: {chrome_for_testing_driver}")
+                os.chmod(chrome_for_testing_driver, 0o755)
+                service = Service(chrome_for_testing_driver)
             elif ChromeDriverManager:
+                log("Using webdriver_manager (local)")
                 service = Service(ChromeDriverManager().install())
             else:
                 service = Service()
