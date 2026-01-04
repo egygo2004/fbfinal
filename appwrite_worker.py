@@ -76,14 +76,15 @@ class AppwriteWorkerClient:
         return None
 
     def report_proxy_usage(self, proxy_id, success=True):
-        """Increment usage or mark as failed"""
+        """Increment usage count (proxy stays active regardless of success/failure)"""
         try:
             doc = self.databases.get_document(self.db_id, self.proxy_id, proxy_id)
-            data = {"last_used": datetime.now().isoformat()}
-            if success:
-                data["usage_count"] = (doc.get("usage_count", 0) or 0) + 1
-            else:
-                data["status"] = "failed"
+            data = {
+                "last_used": datetime.now().isoformat(),
+                "usage_count": (doc.get("usage_count", 0) or 0) + 1
+            }
+            # Note: We no longer set status to "failed" - proxy stays active
+            # This prevents one failure from blocking all remaining numbers
             self.databases.update_document(self.db_id, self.proxy_id, proxy_id, data)
         except Exception as e:
             print(f"[Appwrite] Error reporting proxy: {e}")
