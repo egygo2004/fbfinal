@@ -324,14 +324,24 @@ class FacebookOTPBrowser:
             self.driver.execute_script("arguments[0].value = arguments[1];", inp, phone)  # DOM injection
             btn = self.driver.find_element(By.CSS_SELECTOR, "input[type='submit'], button[type='submit']")
             self.driver.execute_script("arguments[0].click();", btn)  # DOM click
-            self.wait_for_ready(3)
+            time.sleep(1.5)
             self.driver.execute_script("window.stop();")
             log("🛑 Force Stopped Post-Search", "OK")
 
+            # ⚡ EARLY DETECTION - Check for account not found immediately
+            time.sleep(1)
+            quick_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
+            if "doesn't match" in quick_text or "try again or create" in quick_text or "no search results" in quick_text or "لم يتم العثور" in quick_text:
+                log("⚡ Account NOT FOUND (early detection)", "WARN")
+                return False
+
+            # Continue normal flow
+            self.wait_for_ready(2)
+            
             # 3. Handle intermediate pages ("Try another way")
             page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
-            if "no search results" in page_text or "لم يتم العثور" in page_text:
-                log("Account not found", "WARN")
+            if "no search results" in page_text or "لم يتم العثور" in page_text or "doesn't match" in page_text:
+                log("❌ Account NOT FOUND", "WARN")
                 return False
 
             keywords = ["Try another way", "طريقة أخرى", "try another way", "Forgot password"]
@@ -345,32 +355,54 @@ class FacebookOTPBrowser:
                     break
                 except: continue
 
-            # 4. Selection
+            # 4. Selection - IMPROVED with phone number matching
             self.driver.execute_script("window.stop();")
             self._save_step_screenshot("3_selection")
             
+            # Get last 2 digits for matching
+            phone_last_2 = phone[-2:] if phone else ""
+            log(f"Phone last 2 digits: {phone_last_2}", "INFO")
+            
             sms_found = False
-            # Check Radios
+            best_match_radio = None
+            
+            # Check Radios with phone matching
             radios = self.driver.find_elements(By.CSS_SELECTOR, "input[type='radio']")
             for r in radios:
                 try:
                     parent = r.find_element(By.XPATH, "./..")
-                    txt = parent.text.lower()
-                    if any(k in txt for k in ["sms", "text", "رسالة", "phone"]):
+                    grandparent = parent.find_element(By.XPATH, "./..")
+                    full_text = f"{parent.text.lower()} {grandparent.text.lower()}"
+                    
+                    is_sms = "sms" in full_text or "send code via sms" in full_text
+                    matches_phone = phone_last_2 and phone_last_2 in full_text
+                    
+                    if is_sms and matches_phone:
                         self.driver.execute_script("arguments[0].click();", r)
                         sms_found = True
-                        log("SMS radio selected", "OK")
+                        log(f"✅ SMS option matching phone {phone_last_2} selected", "OK")
                         break
+                    elif is_sms and not best_match_radio:
+                        best_match_radio = r
                 except: pass
             
+            # Use fallback SMS if no exact match
+            if not sms_found and best_match_radio:
+                self.driver.execute_script("arguments[0].click();", best_match_radio)
+                sms_found = True
+                log("SMS radio selected (fallback)", "OK")
+            
             if not sms_found: # Fallback text click
-                clickable = self.driver.find_elements(By.CSS_SELECTOR, "div[role='button'], span, label")
+                clickable = self.driver.find_elements(By.CSS_SELECTOR, "div[role='button'], span, label, a")
                 for el in clickable:
-                    if any(k in el.text.lower() for k in ["text message", "sms", "رسالة نصية"]):
-                        el.click()
-                        sms_found = True
-                        log("SMS text selected", "OK")
-                        break
+                    el_text = el.text.lower()
+                    if ("sms" in el_text or "send code via sms" in el_text) and (phone_last_2 in el_text or not phone_last_2):
+                        try:
+                            el.click()
+                            sms_found = True
+                            log("SMS text selected", "OK")
+                            break
+                        except: continue
             
             if not sms_found:
                 log("❌ SMS Option NOT FOUND", "ERROR")

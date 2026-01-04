@@ -23,8 +23,8 @@ print("[DEBUG] fb_otp_local.py initialization started...", flush=True)
 try:
     import requests
     import io
-    # Use seleniumwire for proxy authentication support
-    from seleniumwire import webdriver
+    # Use regular selenium (no proxy)
+    from selenium import webdriver
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
     from selenium.webdriver.support.ui import WebDriverWait
@@ -32,11 +32,11 @@ try:
     from selenium.webdriver.chrome.service import Service
     from selenium.webdriver.chrome.options import Options
     from selenium.common.exceptions import TimeoutException, NoSuchElementException
-    SELENIUMWIRE_AVAILABLE = True
-    print("[DEBUG] Essential libraries imported successfully (with seleniumwire).", flush=True)
+    SELENIUMWIRE_AVAILABLE = False  # Disabled - no proxy
+    print("[DEBUG] Essential libraries imported successfully (NO PROXY MODE).", flush=True)
 except ImportError as e:
     print(f"[ERROR] Missing dependency: {e}", flush=True)
-    print("Please run: pip install selenium-wire", flush=True)
+    print("Please run: pip install selenium", flush=True)
     sys.exit(1)
 
 try:
@@ -156,75 +156,19 @@ class FacebookOTPBrowserLocal:
         options.page_load_strategy = 'eager'
         log("🚀 Page load strategy set to 'eager' (Data Saving)", "OK")
 
-        # Configure SOAX proxy via seleniumwire
-        # Use HTTP for proxy connection (seleniumwire handles the rest)
-        proxy = self.PROXY_CONFIG
-        proxy_url = f"http://{proxy['username']}:{proxy['password']}@{proxy['host']}:{proxy['port']}"
-        
-        seleniumwire_options = {
-            'proxy': {
-                'http': proxy_url,
-                'https': proxy_url,
-                'no_proxy': 'localhost,127.0.0.1'
-            },
-            'verify_ssl': False,  # Disable seleniumwire SSL verification
-            'connection_timeout': 60,
-            'request_timeout': 60
-        }
-        
-        log(f"SOAX Proxy configured: {proxy['host']}:{proxy['port']}", "OK")
+        # NO PROXY - Direct connection
+        log("Running WITHOUT proxy (direct connection)", "OK")
 
         try:
             if ChromeDriverManager:
                 service = Service(ChromeDriverManager().install())
-                self.driver = webdriver.Chrome(service=service, options=options, seleniumwire_options=seleniumwire_options)
+                self.driver = webdriver.Chrome(service=service, options=options)
             else:
-                self.driver = webdriver.Chrome(options=options, seleniumwire_options=seleniumwire_options)
+                self.driver = webdriver.Chrome(options=options)
             
-            # === AGGRESSIVE DATA SAVING - Block unnecessary requests ===
-            def request_interceptor(request):
-                # Block these resource types completely
-                blocked_extensions = (
-                    '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.bmp',  # Images
-                    '.css', '.woff', '.woff2', '.ttf', '.eot', '.otf',  # CSS & Fonts
-                    '.mp4', '.webm', '.avi', '.mov',  # Videos
-                    '.mp3', '.wav', '.ogg',  # Audio
-                    '.pdf', '.zip', '.rar',  # Documents
-                )
-                
-                # Block these domains
-                blocked_domains = (
-                    'google-analytics', 'googletagmanager', 'facebook.com/tr',
-                    'fbcdn.net/rsrc.php/v3', 'static.xx.fbcdn.net/rsrc.php/v4',
-                    'pixel', 'analytics', 'tracking', 'ads', 'beacon',
-                    'connect.facebook.net', 'facebook.com/ajax/bz',
-                )
-                
-                url = request.url.lower()
-                
-                # Block by extension
-                if any(url.endswith(ext) for ext in blocked_extensions):
-                    request.abort()
-                    return
-                
-                # Block by domain/path
-                if any(domain in url for domain in blocked_domains):
-                    request.abort()
-                    return
-                
-                # Block large static resources
-                if 'rsrc.php' in url and ('css' in url or 'js' in url):
-                    # Only allow essential JS
-                    if 'bootloader' not in url:
-                        request.abort()
-                        return
-            
-            self.driver.request_interceptor = request_interceptor
-            log("🛡️ Seleniumwire interceptor enabled", "OK")
-            
-            # Increased timeouts for slow proxy
-            self.driver.set_page_load_timeout(120)
-            self.driver.set_script_timeout(60)
+            # Timeouts
+            self.driver.set_page_load_timeout(60)
+            self.driver.set_script_timeout(30)
             self.wait = WebDriverWait(self.driver, 20)
             
             # === MAXIMUM DATA SAVING - Block EVERYTHING except essential ===
@@ -390,17 +334,25 @@ class FacebookOTPBrowserLocal:
                 try:
                     submit_btn = self.driver.find_element(By.CSS_SELECTOR, "input[type='submit'], button[type='submit']")
                     submit_btn.click()
-                    # Short sleep then stop to ensure we catching the next page but killing extras
-                    time.sleep(2)
+                    # Short sleep then stop
+                    time.sleep(1.5)
                     self.driver.execute_script("window.stop();")
                     log("🛑 Force stopped after submit", "OK")
                 except:
                     inp.send_keys(Keys.ENTER)
-                    time.sleep(2)
+                    time.sleep(1.5)
                     self.driver.execute_script("window.stop();")
                 
+                # Quick early check for "not found" - FAST PATH
+                time.sleep(1)
+                quick_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
+                if "doesn't match" in quick_text or "try again or create" in quick_text or "no search results" in quick_text:
+                    self._save_step_screenshot("not_found_early")
+                    log("⚡ Account NOT FOUND (early detection)", "WARN")
+                    return False
+                
                 # Wait for page to load after search
-                time.sleep(5)
+                time.sleep(2)
                 
                 # Save screenshot: Step 3 - After search
                 self._save_step_screenshot("3_after_search")
@@ -413,7 +365,7 @@ class FacebookOTPBrowserLocal:
                 return False
 
             # 3. Handle Results
-            time.sleep(2)  # Extra wait for page stability
+            time.sleep(1)  # Reduced from 2
             url = self.driver.current_url
             page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
             
@@ -422,9 +374,9 @@ class FacebookOTPBrowserLocal:
             # Save screenshot: Step 4 - Results page
             self._save_step_screenshot("4_results_page")
 
-            if "no search results" in page_text or "لم يتم العثور" in page_text:
+            if "no search results" in page_text or "لم يتم العثور" in page_text or "doesn't match an account" in page_text or "doesn't match" in page_text or "try again or create" in page_text:
                 self._save_step_screenshot("not_found")
-                log("Account not found for this number", "WARN")
+                log("❌ Account NOT FOUND for this number", "WARN")
                 return False
 
             # Try clicking "Try another way" or similar links
@@ -483,11 +435,17 @@ class FacebookOTPBrowserLocal:
                 self.driver.save_screenshot("debug_recovery_page.png")
                 log("Debug screenshot saved: debug_recovery_page.png", "INFO")
                 
-                # Method 1: Find SMS radio buttons
+                # Get last 2 digits of the phone number for matching
+                phone_last_2 = self.current_phone[-2:] if self.current_phone else ""
+                log(f"Phone last 2 digits: {phone_last_2}", "INFO")
+                
+                # Method 1: Find SMS radio buttons - IMPROVED to match phone number
                 radios = self.driver.find_elements(By.CSS_SELECTOR, "input[type='radio']")
                 log(f"Found {len(radios)} radio buttons", "INFO")
                 
                 sms_found = False
+                best_match_radio = None
+                
                 for i, r in enumerate(radios):
                     outer_html = r.get_attribute("outerHTML").lower()
                     parent_text = ""
@@ -500,43 +458,47 @@ class FacebookOTPBrowserLocal:
                     except:
                         pass
                     
+                    # Full text to search
+                    full_text = f"{outer_html} {parent_text} {grandparent_text}"
+                    
                     # Log each option for debugging
                     option_text = parent_text or grandparent_text
-                    log(f"Radio {i+1}: {option_text[:50]}...", "INFO")
+                    log(f"Radio {i+1}: {option_text[:80]}...", "INFO")
                     
-                    # Extended keywords for SMS detection
-                    sms_keywords = ["sms", "text", "phone", "mobile", "رسالة", "هاتف", "جوال", "number ending"]
+                    # Check if this is an SMS option AND matches our phone's last 2 digits
+                    is_sms = "sms" in full_text or "send code via sms" in full_text
+                    matches_phone = phone_last_2 and phone_last_2 in full_text
                     
-                    for kw in sms_keywords:
-                        if kw in outer_html or kw in parent_text or kw in grandparent_text:
-                            self.driver.execute_script("arguments[0].click();", r)
-                            sms_found = True
-                            log(f"SMS option found! (matched: '{kw}')", "OK")
-                            break
-                    if sms_found:
+                    if is_sms and matches_phone:
+                        # Perfect match - SMS option that matches our phone
+                        self.driver.execute_script("arguments[0].click();", r)
+                        sms_found = True
+                        log(f"✅ SMS option found matching phone ending in {phone_last_2}!", "OK")
                         break
+                    elif is_sms and not best_match_radio:
+                        # Store first SMS option as backup
+                        best_match_radio = r
                 
-                # Method 2: Look for clickable elements with SMS/text message text
+                # If no exact match, use the first SMS option found
+                if not sms_found and best_match_radio:
+                    self.driver.execute_script("arguments[0].click();", best_match_radio)
+                    sms_found = True
+                    log(f"SMS option found (fallback - no exact phone match)", "OK")
+                
+                # Method 2: Look for clickable elements with SMS text and phone match
                 if not sms_found:
-                    sms_keywords = [
-                        "send me a text", "text message", "sms", "phone number",
-                        "send code to", "رسالة نصية", "إرسال رمز", "number ending",
-                        "mobile", "get code"
-                    ]
-                    clickable = self.driver.find_elements(By.CSS_SELECTOR, "div[role='button'], span, label, td")
+                    clickable = self.driver.find_elements(By.CSS_SELECTOR, "div[role='button'], span, label, td, a")
                     for el in clickable:
                         el_text = el.text.lower()
-                        for kw in sms_keywords:
-                            if kw in el_text:
-                                try:
-                                    el.click()
-                                    sms_found = True
-                                    log(f"SMS option found via text match: '{kw}'", "OK")
-                                    break
-                                except:
-                                    continue
-                        if sms_found:
-                            break
+                        # Check for SMS + phone match
+                        if ("sms" in el_text or "send code via sms" in el_text) and (phone_last_2 in el_text or not phone_last_2):
+                            try:
+                                el.click()
+                                sms_found = True
+                                log(f"SMS option found via element click", "OK")
+                                break
+                            except:
+                                continue
                 
                 # ⚠️ If SMS not found - FAIL and stop
                 if not sms_found:
