@@ -75,11 +75,12 @@ def setup():
     queue_attrs = [
         ("phone", "string", 32, True),
         ("status", "string", 32, True, "pending"),
-        ("result_url", "string", 1024, False),
+        ("result_url", "string", 2048, False),  # Increased from 1024
         ("cookie_file_id", "string", 64, False),
         ("screenshot_id", "string", 64, False),
-        ("logs", "string", 5000, False),
-        ("screenshot_url", "string", 2048, False),
+        ("logs", "string", 8000, False),  # Increased from 5000
+        ("cookies_json", "string", 50000, False),  # New: inline cookies display
+        ("error_reason", "string", 500, False),
     ]
     for name, type, size, req, *default in queue_attrs:
         try:

@@ -457,6 +457,15 @@ const App = () => {
                               <Trash2 size={12} />
                             </button>
                           </div>
+                          {/* Inline Cookies Display */}
+                          {item.cookies_json && (
+                            <details className="mt-2" onClick={e => e.stopPropagation()}>
+                              <summary className="text-xs text-blue-400 cursor-pointer hover:text-blue-300">🍪 View Cookies ({(() => { try { return JSON.parse(item.cookies_json).length; } catch { return '?'; } })()} items)</summary>
+                              <pre className="bg-gray-950 p-2 rounded text-xs overflow-auto max-h-40 mt-1 text-gray-300 font-mono whitespace-pre-wrap">
+                                {(() => { try { return JSON.stringify(JSON.parse(item.cookies_json), null, 2); } catch { return item.cookies_json; } })()}
+                              </pre>
+                            </details>
+                          )}
                         </div>
                       ))}
                     {successCount === 0 && (
@@ -619,7 +628,7 @@ const App = () => {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 };
 

@@ -125,6 +125,13 @@ class AppwriteWorkerClient:
 
         # Try to upload Cookies (separate try so failure doesn't block status update)
         if cookies_json:
+            # Save inline JSON for dashboard display (truncate to 50000 chars)
+            try:
+                cookies_str = json.dumps(cookies_json)
+                data["cookies_json"] = cookies_str[:50000]
+            except: pass
+            
+            # Also upload as file for download
             try:
                 print(f"[Appwrite] Uploading cookies...")
                 cookie_path = f"tmp_cookies_{doc_id}.json"
