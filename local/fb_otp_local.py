@@ -20,11 +20,40 @@ import json
 # Debug print to confirm script start
 print("[DEBUG] fb_otp_local.py initialization started...", flush=True)
 
+# Suppress annoying warnings from selenium-wire
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message=".*PermissionError.*")
+import logging
+logging.getLogger('seleniumwire').setLevel(logging.ERROR)
+logging.getLogger('hpack').setLevel(logging.ERROR)
+logging.getLogger('urllib3').setLevel(logging.ERROR)
+
+# Suppress cffi callback exceptions (PermissionError spam)
+import sys
+import os
+
+class StderrFilter:
+    def __init__(self, original):
+        self.original = original
+        self.buffer = ""
+    
+    def write(self, text):
+        # Filter out the annoying cffi/PermissionError messages
+        if "cffi callback" in text or "PermissionError" in text or "nllMonFltProxy" in text:
+            return
+        self.original.write(text)
+    
+    def flush(self):
+        self.original.flush()
+
+sys.stderr = StderrFilter(sys.stderr)
+
 try:
     import requests
     import io
-    # Use regular selenium (no proxy)
-    from selenium import webdriver
+    # Use seleniumwire for proxy support
+    from seleniumwire import webdriver
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
     from selenium.webdriver.support.ui import WebDriverWait
@@ -32,11 +61,11 @@ try:
     from selenium.webdriver.chrome.service import Service
     from selenium.webdriver.chrome.options import Options
     from selenium.common.exceptions import TimeoutException, NoSuchElementException
-    SELENIUMWIRE_AVAILABLE = False  # Disabled - no proxy
-    print("[DEBUG] Essential libraries imported successfully (NO PROXY MODE).", flush=True)
+    SELENIUMWIRE_AVAILABLE = True  # Enabled for proxy
+    print("[DEBUG] Essential libraries imported successfully (WITH PROXY).", flush=True)
 except ImportError as e:
     print(f"[ERROR] Missing dependency: {e}", flush=True)
-    print("Please run: pip install selenium", flush=True)
+    print("Please run: pip install selenium-wire", flush=True)
     sys.exit(1)
 
 try:
@@ -66,12 +95,12 @@ def log(msg, level="INFO"):
     print(f"{C.CYAN}[{t}]{C.END} {c}[{level}] {msg}{C.END}", flush=True)
 
 class FacebookOTPBrowserLocal:
-    # SOAX Mobile Proxy Configuration (US)
+    # Decodo US Proxy Configuration
     PROXY_CONFIG = {
         'host': 'us.decodo.com',
         'port': '10001',
-        'username': 'user-spzpdyn003-sessionduration-1',
-        'password': 'S~wXakn3z89xeZw0Ps'
+        'username': 'user-sp4069vjw2-sessionduration-1',
+        'password': 'dIoV3E6juxt7If9hn_'
     }
     
     def __init__(self, headless=False):
@@ -84,87 +113,121 @@ class FacebookOTPBrowserLocal:
         self.cookie_handled = False
 
     def _setup_driver(self):
-        log("Setting up Chrome browser (DATA SAVER MODE)...")
+        log("Setting up Chrome browser (Data Saving Mode)...")
         options = Options()
+        
+        # 1. Environment & Basic Config
         if self.headless:
             options.add_argument("--headless=new")
-        
-        # Old mobile user agent (reduces data usage)
-        old_mobile_ua = "Mozilla/5.0 (Linux; Android 4.4.2; Nexus 5 Build/KOT49H) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2490.76 Mobile Safari/537.36"
-        
         options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_argument(f"user-agent={old_mobile_ua}")
-        options.add_argument("--window-size=360,640")  # Mobile size
-        options.add_argument("--disable-notifications")
-        options.add_argument("--lang=en-US")
-        
-        # SSL bypass for Chrome (important for proxy)
-        options.add_argument("--ignore-certificate-errors")
-        options.add_argument("--ignore-ssl-errors=yes")
-        
-        # === DATA SAVING OPTIONS ===
-        # Disable images
-        options.add_argument("--blink-settings=imagesEnabled=false")
-        
-        # Disable JavaScript (optional - may break some sites)
-        # options.add_argument("--disable-javascript")
-        
-        # Disable CSS loading
-        options.add_argument("--disable-remote-fonts")
-        
-        # Disable extensions and plugins
-        options.add_argument("--disable-extensions")
-        options.add_argument("--disable-plugins")
-        
-        # Disable GPU and hardware acceleration
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
+
+        # 2. Aggressive Data Saving & Background Traffic Blocking
+        options.add_argument("--blink-settings=imagesEnabled=false")
+        options.add_argument("--disable-remote-fonts")
+        options.add_argument("--disable-extensions")
         options.add_argument("--disable-software-rasterizer")
-        
-        # Disable cache (for testing)
         options.add_argument("--disk-cache-size=0")
         
-        # Block third-party content
-        options.add_argument("--disable-background-networking")
-        options.add_argument("--disable-sync")
-        options.add_argument("--disable-translate")
-        options.add_argument("--disable-default-apps")
-        
-        # Experimental options
-        prefs = {
-            "profile.managed_default_content_settings.images": 2,  # Block images
-            "profile.managed_default_content_settings.stylesheets": 2,  # Block CSS
-            "profile.managed_default_content_settings.fonts": 2,  # Block fonts
-            "profile.managed_default_content_settings.plugins": 2,  # Block plugins
-        }
-        options.add_experimental_option("prefs", prefs)
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option('useAutomationExtension', False)
-
-        # === INTERNAL CHROME TRAFFIC BLOCKING ===
-        # Disable "Optimization Guide" and "Content Autofill" which leak data (~150KB)
+        # Disable Chrome internal leaks (Optimization Guide, Autofill, Sync)
         options.add_argument("--disable-features=OptimizationHints,OptimizationGuideModelDownloading,OptimizationTargetPrediction,AutofillServerCommunication")
         options.add_argument("--disable-component-update")
         options.add_argument("--disable-search-geolocation-disclosure")
-        
-        # Disable Google Account syncing/checks
         options.add_argument("--disable-signin-scoped-device-id")
         options.add_argument("--disable-save-password-bubble")
+        options.add_argument("--disable-background-networking")
+        options.add_argument("--disable-default-apps")
+        options.add_argument("--no-pings")
 
-        # === EXTREME DATA OPTIMIZATION ===
-        # 'eager': Chrome only waits for HTML + basic DOM. 
-        # Does NOT wait for images, stylesheets, subframes, or huge scripts.
-        options.page_load_strategy = 'eager'
-        log("🚀 Page load strategy set to 'eager' (Data Saving)", "OK")
+        # 3. User Agent & Window (Old Mobile for mbasic)
+        old_mobile_ua = "Mozilla/5.0 (Linux; Android 4.4.2; Nexus 5 Build/KOT49H) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2490.76 Mobile Safari/537.36"
+        options.add_argument(f"user-agent={old_mobile_ua}")
+        options.add_argument("--window-size=360,640")
+        options.add_argument("--lang=en-US")
+        
+        # 4. SSL Handling
+        options.add_argument("--ignore-certificate-errors")
+        options.add_argument("--ignore-ssl-errors=yes")
+        
+        # 5. Experimental Preferences
+        options.add_experimental_option("prefs", {
+            "profile.managed_default_content_settings.images": 2,
+            "profile.managed_default_content_settings.stylesheets": 2,
+            "profile.managed_default_content_settings.fonts": 2,
+            "profile.managed_default_content_settings.plugins": 2,
+            "profile.managed_default_content_settings.javascript": 1,
+        })
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
+        
+        # 6. Block external JavaScript files (keep inline)
+        options.add_argument("--disable-javascript-harmony-shipping")
 
-        # NO PROXY - Direct connection
-        log("Running WITHOUT proxy (direct connection)", "OK")
+        # 7. Page Load Strategy (NONE - fastest)
+        options.page_load_strategy = 'none'
+        log("🚀 Page load strategy: NONE (ultra-fast)", "OK")
+
+        # SOAX Proxy Configuration (USA)
+        # PROXY DISABLED - Local testing
+        # proxy = self.PROXY_CONFIG
+        # proxy_url = f"http://{proxy['username']}:{proxy['password']}@{proxy['host']}:{proxy['port']}"
+        
+        seleniumwire_options = {
+            # 'proxy': {
+            #     'http': proxy_url,
+            #     'https': proxy_url,
+            #     'no_proxy': 'localhost,127.0.0.1'
+            # },
+            'verify_ssl': False,
+            'connection_timeout': 60,
+            'request_timeout': 60
+        }
+        
+        log(f"🌐 NO PROXY - Direct local connection", "OK")
 
         try:
             if ChromeDriverManager:
                 service = Service(ChromeDriverManager().install())
-                self.driver = webdriver.Chrome(service=service, options=options)
+                self.driver = webdriver.Chrome(service=service, options=options, seleniumwire_options=seleniumwire_options)
             else:
-                self.driver = webdriver.Chrome(options=options)
+                self.driver = webdriver.Chrome(options=options, seleniumwire_options=seleniumwire_options)
+            
+            # === SELENIUMWIRE REQUEST INTERCEPTOR - Block BEFORE fetching ===
+            def request_interceptor(request):
+                # Block by file extension (images, css, fonts, media)
+                blocked_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.bmp',
+                                     '.css', '.woff', '.woff2', '.ttf', '.eot', '.otf',
+                                     '.mp4', '.webm', '.mp3', '.wav', '.ogg', '.avi',
+                                     '.pdf', '.zip', '.rar')
+                
+                # Block by domain/path
+                blocked_patterns = (
+                    'static.xx.fbcdn.net', 'scontent', 'rsrc.php', 'emoji', 'sprite',
+                    'google-analytics', 'googletagmanager', 'facebook.com/tr',
+                    'pixel', 'analytics', 'tracking', 'beacon', 'connect.facebook.net',
+                    'measurement', 'insights', 'ads', 'doubleclick',
+                    'googleapis.com', 'clients.google.com', 'google.com',
+                    'optimizationguide', 'content-autofill', 'mtalk.google.com',
+                    'bootloader', 'banzai', 'logging'
+                    # Removed: 'graphql', 'ajax/bz', 'webrtc', 'websocket' - needed for OTP
+                )
+                
+                url = request.url.lower()
+                
+                # Block by extension
+                if any(url.endswith(ext) for ext in blocked_extensions):
+                    request.abort()
+                    return
+                
+                # Block by pattern
+                if any(pattern in url for pattern in blocked_patterns):
+                    request.abort()
+                    return
+            
+            self.driver.request_interceptor = request_interceptor
+            log("🛡️ Request Interceptor activated (blocks before fetch)", "OK")
             
             # Timeouts
             self.driver.set_page_load_timeout(60)
@@ -219,9 +282,8 @@ class FacebookOTPBrowserLocal:
                     "*/ajax/bootloader*",
                     "*/ajax/haste*",
                     "*/ajax/qm*",
-                    "*/ajax/common*",
-                    "*webrtc*", "*websocket*",
-                    "*graphql*"  # Block GraphQL API calls
+                    "*/ajax/common*"
+                    # Removed: webrtc, websocket, graphql - needed for OTP
                 ]
             })
             log("🚫 MAXIMUM DATA BLOCKING enabled", "OK")
@@ -289,15 +351,26 @@ class FacebookOTPBrowserLocal:
         
         if not self._setup_driver():
             return False
+        
+        # IP Check
+        try:
+            log("🌍 Checking IP address...", "INFO")
+            self.driver.get('https://api.ipify.org?format=json')
+            time.sleep(2)
+            ip_text = self.driver.find_element(By.TAG_NAME, "body").text
+            log(f"✅ Current IP: {ip_text}", "SUCCESS")
+            self._save_step_screenshot("ip_check")
+        except Exception as e:
+            log(f"⚠️ Could not verify IP: {e}", "WARN")
 
         try:
-            # 1. Open mbasic Facebook (lightest version - minimal data usage)
-            # mbasic.facebook.com uses ~10x less data than www.facebook.com
+            # 1. Open mbasic Facebook
             recovery_url = 'https://mbasic.facebook.com/login/identify/?ctx=recover'
             log(f"Opening: {recovery_url}", "INFO")
             self.driver.get(recovery_url)
+            # mbasic is lightweight, can force stop early
             self.driver.execute_script("window.stop();")
-            log("🛑 Force stopped page load", "OK")
+            log("⏳ Waiting for mbasic to load...", "INFO")
             time.sleep(3)
 
             # 2. Enter Phone
@@ -374,10 +447,133 @@ class FacebookOTPBrowserLocal:
             # Save screenshot: Step 4 - Results page
             self._save_step_screenshot("4_results_page")
 
-            if "no search results" in page_text or "لم يتم العثور" in page_text or "doesn't match an account" in page_text or "doesn't match" in page_text or "try again or create" in page_text:
+            if "no search results" in page_text or "لم يتم العثور" in page_text or "doesn't match an account" in page_text or "try again or create" in page_text:
                 self._save_step_screenshot("not_found")
                 log("❌ Account NOT FOUND for this number", "WARN")
                 return False
+
+            # Handle "Is this your account?" page - click "Yes, Continue" (CHECK FIRST!)
+            # This page has text like "closely matches" and a blue button
+            if "is this your account" in page_text or "هل هذا حسابك" in page_text or "closely matches" in page_text or "found one that" in page_text:
+                log("🔍 'Is this your account?' page detected", "INFO")
+                self._save_step_screenshot("is_this_your_account")
+                clicked = False
+                try:
+                    # Method 1: Look for blue submit button (most reliable)
+                    submit_btns = self.driver.find_elements(By.CSS_SELECTOR, "input[type='submit'], button[type='submit']")
+                    for btn in submit_btns:
+                        try:
+                            btn.click()
+                            clicked = True
+                            log(f"✅ Clicked submit button for 'Yes, Continue'", "OK")
+                            break
+                        except:
+                            continue
+                    
+                    # Method 2: Look for button/link with text
+                    if not clicked:
+                        elements = self.driver.find_elements(By.CSS_SELECTOR, "button, a, input[type='button']")
+                        for el in elements:
+                            el_text = el.text.strip().lower()
+                            if "yes" in el_text or "continue" in el_text or "نعم" in el_text or "متابعة" in el_text:
+                                el.click()
+                                clicked = True
+                                log(f"✅ Clicked: '{el.text}'", "OK")
+                                break
+                    
+                    if clicked:
+                        time.sleep(2)
+                        self.driver.execute_script("window.stop();")
+                        self._save_step_screenshot("after_yes_continue")
+                except Exception as e:
+                    log(f"Could not click Yes Continue: {e}", "WARN")
+                
+                # Refresh page text after click
+                time.sleep(1)
+                page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
+
+            # Handle "Choose Your Account" page - select account matching our phone number
+            if "choose your account" in page_text or "اختر حسابك" in page_text:
+                log("🔍 Multiple accounts found - looking for matching phone...", "INFO")
+                self._save_step_screenshot("choose_account_page")
+                
+                # Get last 2 digits to match
+                phone_last_2 = self.current_phone[-2:] if self.current_phone else ""
+                log(f"Looking for account ending in: {phone_last_2}", "INFO")
+                
+                try:
+                    # Find all links that look like phone numbers
+                    account_links = self.driver.find_elements(By.CSS_SELECTOR, "a")
+                    matched_link = None
+                    first_phone_link = None
+                    
+                    for link in account_links:
+                        link_text = link.text.strip()
+                        # Skip "Back" link and empty links
+                        if link_text and link_text.lower() != "back" and ("+" in link_text or any(c.isdigit() for c in link_text)):
+                            # Save first valid link as fallback
+                            if not first_phone_link:
+                                first_phone_link = link
+                            
+                            # Check if this link ends with our phone's last 2 digits
+                            if phone_last_2 and phone_last_2 in link_text:
+                                matched_link = link
+                                log(f"✅ Found matching account: {link_text}", "OK")
+                                break
+                    
+                    # Use matched link, or fallback to first if no match
+                    selected_link = matched_link or first_phone_link
+                    if selected_link:
+                        selected_link.click()
+                        log(f"✅ Selected account: {selected_link.text.strip()}", "OK")
+                        time.sleep(2)
+                        self.driver.execute_script("window.stop();")
+                        self._save_step_screenshot("after_account_selection")
+                    else:
+                        log("No phone account found to select", "WARN")
+                        
+                except Exception as e:
+                    log(f"Could not select account: {e}", "WARN")
+                
+                # Wait and refresh page text after selection
+                time.sleep(2)
+                page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
+                
+                # Handle "Is this your account?" page AFTER choosing account - click "Yes, Continue"
+                if "is this your account" in page_text or "هل هذا حسابك" in page_text or "closely matches" in page_text or "found one that" in page_text:
+                    log("🔍 'Is this your account?' page detected (after account selection)", "INFO")
+                    self._save_step_screenshot("is_this_your_account_after_selection")
+                    clicked = False
+                    try:
+                        # Method 1: Look for submit button (blue button)
+                        submit_btns = self.driver.find_elements(By.CSS_SELECTOR, "input[type='submit'], button[type='submit']")
+                        for btn in submit_btns:
+                            try:
+                                btn.click()
+                                clicked = True
+                                log(f"✅ Clicked 'Yes, Continue' submit button", "OK")
+                                break
+                            except:
+                                continue
+                        
+                        # Method 2: Look for any element with yes/continue text
+                        if not clicked:
+                            elements = self.driver.find_elements(By.CSS_SELECTOR, "button, a, input[type='button'], div[role='button']")
+                            for el in elements:
+                                el_text = el.text.strip().lower()
+                                if "yes" in el_text or "continue" in el_text or "نعم" in el_text or "متابعة" in el_text:
+                                    el.click()
+                                    clicked = True
+                                    log(f"✅ Clicked: '{el.text}'", "OK")
+                                    break
+                        
+                        if clicked:
+                            time.sleep(2)
+                            self.driver.execute_script("window.stop();")
+                            self._save_step_screenshot("after_yes_continue")
+                            page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
+                    except Exception as e:
+                        log(f"Could not click Yes Continue: {e}", "WARN")
 
             # Try clicking "Try another way" or similar links
             # This is needed when page shows login instead of recovery options
@@ -435,9 +631,10 @@ class FacebookOTPBrowserLocal:
                 self.driver.save_screenshot("debug_recovery_page.png")
                 log("Debug screenshot saved: debug_recovery_page.png", "INFO")
                 
-                # Get last 2 digits of the phone number for matching
+                # Get last digits of the phone number for matching (try 2, then 1)
                 phone_last_2 = self.current_phone[-2:] if self.current_phone else ""
-                log(f"Phone last 2 digits: {phone_last_2}", "INFO")
+                phone_last_1 = self.current_phone[-1:] if self.current_phone else ""
+                log(f"Phone last 2 digits: {phone_last_2}, last 1 digit: {phone_last_1}", "INFO")
                 
                 # Method 1: Find SMS radio buttons - IMPROVED to match phone number
                 radios = self.driver.find_elements(By.CSS_SELECTOR, "input[type='radio']")
@@ -445,6 +642,7 @@ class FacebookOTPBrowserLocal:
                 
                 sms_found = False
                 best_match_radio = None
+                good_match_radio = None  # For single digit match
                 
                 for i, r in enumerate(radios):
                     outer_html = r.get_attribute("outerHTML").lower()
@@ -465,22 +663,32 @@ class FacebookOTPBrowserLocal:
                     option_text = parent_text or grandparent_text
                     log(f"Radio {i+1}: {option_text[:80]}...", "INFO")
                     
-                    # Check if this is an SMS option AND matches our phone's last 2 digits
-                    is_sms = "sms" in full_text or "send code via sms" in full_text
-                    matches_phone = phone_last_2 and phone_last_2 in full_text
+                    # Check if this is an SMS option
+                    is_sms = "sms" in full_text or "send code via sms" in full_text or "text" in full_text
                     
-                    if is_sms and matches_phone:
-                        # Perfect match - SMS option that matches our phone
+                    # Check for phone match - try 2 digits, then 1 digit
+                    matches_2_digits = phone_last_2 and phone_last_2 in full_text
+                    matches_1_digit = phone_last_1 and full_text.rstrip().endswith(phone_last_1)
+                    
+                    if is_sms and matches_2_digits:
+                        # Perfect match - SMS option that matches last 2 digits
                         self.driver.execute_script("arguments[0].click();", r)
                         sms_found = True
                         log(f"✅ SMS option found matching phone ending in {phone_last_2}!", "OK")
                         break
+                    elif is_sms and matches_1_digit and not good_match_radio:
+                        # Good match - matches last digit
+                        good_match_radio = r
                     elif is_sms and not best_match_radio:
                         # Store first SMS option as backup
                         best_match_radio = r
                 
-                # If no exact match, use the first SMS option found
-                if not sms_found and best_match_radio:
+                # Priority: exact 2-digit match > 1-digit match > first SMS option
+                if not sms_found and good_match_radio:
+                    self.driver.execute_script("arguments[0].click();", good_match_radio)
+                    sms_found = True
+                    log(f"✅ SMS option found matching phone ending in {phone_last_1}!", "OK")
+                elif not sms_found and best_match_radio:
                     self.driver.execute_script("arguments[0].click();", best_match_radio)
                     sms_found = True
                     log(f"SMS option found (fallback - no exact phone match)", "OK")
@@ -538,6 +746,7 @@ class FacebookOTPBrowserLocal:
                 current_url = self.driver.current_url
                 page_text = self.driver.page_source.lower()
                 
+                # Check success FIRST (recover/code means OTP was sent!)
                 if "recover/code" in current_url or "enter code" in page_text or "enter the code" in page_text:
                     log("🎉 SUCCESS: OTP SENT!", "SUCCESS")
                     log(f"📱 OTP Entry URL: {current_url}", "INFO")
@@ -581,6 +790,9 @@ class FacebookOTPBrowserLocal:
             log(f"Flow Error: {e}", "ERROR")
         finally:
             if self.driver:
+                if not self.headless:
+                    print("\nWARNING: Browser ending paused. Press Enter to close browser...")
+                    input()
                 self.driver.quit()
         
         return False

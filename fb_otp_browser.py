@@ -244,8 +244,9 @@ class FacebookOTPBrowser:
                         "*accounts.google.com*", "*android.clients.google.com*", "*www.google.com*",
                         "*safebrowsing*", "*gstatic.com*", "*translate.google*", "*play.google.com*",
                         # Facebook/Meta unnecessary
-                        "*static.xx.fbcdn.net*", "*fbcdn.net/rsrc*", "*connect.facebook.net*", "*graphql*",
+                        "*static.xx.fbcdn.net*", "*fbcdn.net/rsrc*", "*connect.facebook.net*",
                         "*scontent*", "*fbsbx.com*"
+                        # Removed: *graphql*, *ajax/bz*, webrtc, websocket - needed for OTP
                     ]
                 })
                 log("🚫 CDP Traffic Blocked", "OK")
