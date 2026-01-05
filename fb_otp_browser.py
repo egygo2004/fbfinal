@@ -209,8 +209,25 @@ class FacebookOTPBrowser:
         log(f"🌐 NO PROXY - Direct local connection", "OK")
 
         try:
-            if ChromeDriverManager:
+            # Priority 1: Heroku Chrome for Testing chromedriver
+            heroku_chromedriver = "/app/.chrome-for-testing/chromedriver-linux64/chromedriver"
+            env_chromedriver = os.environ.get("CHROMEDRIVER_PATH")
+            
+            service = None
+            if os.path.exists(heroku_chromedriver):
+                log(f"Using Heroku ChromeDriver: {heroku_chromedriver}")
+                os.chmod(heroku_chromedriver, 0o755)
+                service = Service(heroku_chromedriver)
+            elif env_chromedriver and os.path.exists(env_chromedriver):
+                log(f"Using ENV ChromeDriver: {env_chromedriver}")
+                service = Service(env_chromedriver)
+            elif ChromeDriverManager:
+                log("Using ChromeDriverManager to install chromedriver")
                 service = Service(ChromeDriverManager().install())
+            else:
+                log("Using system chromedriver (no explicit path)", "WARN")
+            
+            if service:
                 self.driver = webdriver.Chrome(service=service, options=options, seleniumwire_options=seleniumwire_options)
             else:
                 self.driver = webdriver.Chrome(options=options, seleniumwire_options=seleniumwire_options)
