@@ -137,17 +137,13 @@ class FacebookOTPBrowser:
             "profile.managed_default_content_settings.stylesheets": 2,
             "profile.managed_default_content_settings.fonts": 2,
             "profile.managed_default_content_settings.plugins": 2,
-            "profile.managed_default_content_settings.javascript": 1,  # Keep enabled but block external
         })
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
-        
-        # 7a. Block external JavaScript files (keep inline)
-        options.add_argument("--disable-javascript-harmony-shipping")
 
-        # 7. Page Load Strategy (NONE - fastest, we control loading)
-        options.page_load_strategy = 'none'
-        log("🚀 Page load strategy: NONE (ultra-fast)", "OK")
+        # 7. Page Load Strategy (EAGER)
+        options.page_load_strategy = 'eager'
+        log("🚀 Page load strategy: EAGER", "OK")
 
         # 8. Proxy Connection
         proxy = self.PROXY_CONFIG
@@ -165,24 +161,13 @@ class FacebookOTPBrowser:
 
         # 9. Initialize WebDriver
         try:
-            # Priority order for chromedriver:
-            # 1. CHROMEDRIVER_PATH environment variable
-            # 2. Chrome for Testing path (Heroku buildpack)
-            # 3. webdriver_manager (local development)
             driver_path = os.environ.get("CHROMEDRIVER_PATH")
-            chrome_for_testing_driver = "/app/.chrome-for-testing/chromedriver-linux64/chromedriver"
-            
             service = None
             if driver_path and os.path.exists(driver_path):
                 log(f"Using Chromedriver: {driver_path}")
                 os.chmod(driver_path, 0o755)
                 service = Service(driver_path)
-            elif os.path.exists(chrome_for_testing_driver):
-                log(f"Using Chrome for Testing driver: {chrome_for_testing_driver}")
-                os.chmod(chrome_for_testing_driver, 0o755)
-                service = Service(chrome_for_testing_driver)
             elif ChromeDriverManager:
-                log("Using webdriver_manager (local)")
                 service = Service(ChromeDriverManager().install())
             else:
                 service = Service()
@@ -197,31 +182,12 @@ class FacebookOTPBrowser:
             
             # 10. Request Interceptor (SeleniumWire level)
             def request_interceptor(request):
-                blocked_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.wasm', '.woff', '.woff2', '.ttf', '.css', '.mp4', '.svg', '.ico', '.webp')
-                blocked_domains = (
-                    # Analytics & Tracking
-                    'google-analytics', 'googletagmanager', 'pixel', 'ads', 'tracking', 'facebook.com/tr',
-                    # Google Services (unnecessary)
-                    'accounts.google.com', 'android.clients.google.com', 'www.google.com',
-                    'optimizationguide-pa.googleapis.com', 'content-autofill.googleapis.com',
-                    'clients2.google.com', 'clients1.google.com', 'clients.google.com',
-                    'mtalk.google.com', 'play.google.com', 'update.googleapis.com',
-                    'safebrowsing.googleapis.com', 'ssl.gstatic.com', 'fonts.googleapis.com',
-                    'fonts.gstatic.com', 'apis.google.com', 'translate.googleapis.com',
-                    # Facebook Static (CSS/Images)
-                    'static.xx.fbcdn.net', 'static.cdninstagram.com', 'scontent',
-                    'fbsbx.com', 'fbcdn.net/rsrc', 'connect.facebook.net'
-                )
+                blocked_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.wasm', '.woff', '.css', '.mp4')
+                blocked_domains = ('google-analytics', 'googletagmanager', 'pixel', 'ads', 'tracking', 'facebook.com/tr')
                 url = request.url.lower()
-                # Block by extension
-                if any(url.endswith(ext) for ext in blocked_extensions):
+                if any(url.endswith(ext) for ext in blocked_extensions) or any(d in url for d in blocked_domains):
                     request.abort()
                     return
-                # Block by domain
-                if any(d in url for d in blocked_domains):
-                    request.abort()
-                    return
-                # Block FB resource files (CSS, JS bundles) except bootloader
                 if 'rsrc.php' in url and 'bootloader' not in url:
                     request.abort()
                     return
@@ -234,19 +200,10 @@ class FacebookOTPBrowser:
                 self.driver.execute_cdp_cmd("Network.enable", {})
                 self.driver.execute_cdp_cmd("Network.setBlockedURLs", {
                     "urls": [
-                        # Static assets
-                        "*.png", "*.jpg", "*.jpeg", "*.gif", "*.css", "*.woff", "*.woff2", "*.ico", "*.svg", "*.webp",
-                        # Analytics
+                        "*.png", "*.jpg", "*.css", "*.woff", "*.ico",
                         "*google-analytics*", "*googletagmanager*", "*pixel*",
-                        # Google services
                         "*optimizationguide*", "*content-autofill*", "*mtalk.google.com*",
-                        "*googleapis.com*", "*clients.google.com*", "*clients2.google.com*",
-                        "*accounts.google.com*", "*android.clients.google.com*", "*www.google.com*",
-                        "*safebrowsing*", "*gstatic.com*", "*translate.google*", "*play.google.com*",
-                        # Facebook/Meta unnecessary
-                        "*static.xx.fbcdn.net*", "*fbcdn.net/rsrc*", "*connect.facebook.net*",
-                        "*scontent*", "*fbsbx.com*"
-                        # Removed: *graphql*, *ajax/bz*, webrtc, websocket - needed for OTP
+                        "*googleapis.com*", "*clients.google.com*", "*graphql*"
                     ]
                 })
                 log("🚫 CDP Traffic Blocked", "OK")
@@ -276,73 +233,39 @@ class FacebookOTPBrowser:
     def send_telegram_photo(self, caption, file_path):
         if not self.telegram_token or not self.telegram_chat_id: return
         try:
-            log("Sending Telegram photo...", "INFO")
             url = f"https://api.telegram.org/bot{self.telegram_token}/sendPhoto"
             with open(file_path, "rb") as f:
-                requests.post(url, files={"photo": f}, data={"chat_id": self.telegram_chat_id, "caption": caption}, timeout=10)
-            log("Telegram photo sent!", "INFO")
+                requests.post(url, files={"photo": f}, data={"chat_id": self.telegram_chat_id, "caption": caption})
         except Exception as e: log(f"Telegram error: {e}", "WARN")
-
-    def check_ip(self):
-        try:
-            log("🌍 Checking IP...", "INFO")
-            self.driver.get('https://api.ipify.org?format=json')
-            time.sleep(2)
-            ip_info = self.driver.find_element(By.TAG_NAME, "body").text
-            log(f"✅ Current IP: {ip_info}", "SUCCESS")
-        except Exception as e:
-            log(f"⚠️ Could not verify IP: {e}", "WARN")
-
-    def wait_for_ready(self, timeout=5):
-        """Smart wait using document.readyState instead of fixed sleep"""
-        try:
-            for _ in range(timeout * 10):  # Check every 100ms
-                state = self.driver.execute_script("return document.readyState")
-                if state in ['complete', 'interactive']:
-                    return True
-                time.sleep(0.1)
-        except:
-            pass
-        return False
 
     def run_flow(self, phone):
         self.current_phone = phone
         log(f"🚀 Processing: {phone}")
         if not self._setup_driver(): return False
-        
-        # Skip IP check for speed (uncomment for debugging)
-        # self.check_ip()
 
         try:
-            # 1. Open with DOM injection approach
+            # 1. Open
             self.driver.get('https://mbasic.facebook.com/login/identify/?ctx=recover')
-            self.wait_for_ready(3)  # Smart wait instead of fixed sleep
             self.driver.execute_script("window.stop();")
             log("🛑 Force Stopped Home Page", "OK")
+            time.sleep(1)
 
-            # 2. Search - use DOM injection for speed
-            inp = WebDriverWait(self.driver, 8).until(EC.presence_of_element_located((By.NAME, "email")))
-            self.driver.execute_script("arguments[0].value = arguments[1];", inp, phone)  # DOM injection
+            # 2. Search
+            self._save_step_screenshot("1_open")
+            inp = WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.NAME, "email")))
+            inp.send_keys(phone)
             btn = self.driver.find_element(By.CSS_SELECTOR, "input[type='submit'], button[type='submit']")
-            self.driver.execute_script("arguments[0].click();", btn)  # DOM click
-            time.sleep(1.5)
+            btn.click()
+            time.sleep(2)
             self.driver.execute_script("window.stop();")
             log("🛑 Force Stopped Post-Search", "OK")
+            time.sleep(2)
 
-            # ⚡ EARLY DETECTION - Check for account not found immediately
-            time.sleep(1)
-            quick_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
-            if "doesn't match" in quick_text or "try again or create" in quick_text or "no search results" in quick_text or "لم يتم العثور" in quick_text:
-                log("⚡ Account NOT FOUND (early detection)", "WARN")
-                return False
-
-            # Continue normal flow
-            self.wait_for_ready(2)
-            
             # 3. Handle intermediate pages ("Try another way")
+            self._save_step_screenshot("2_results")
             page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
-            if "no search results" in page_text or "لم يتم العثور" in page_text or "doesn't match" in page_text:
-                log("❌ Account NOT FOUND", "WARN")
+            if "no search results" in page_text or "لم يتم العثور" in page_text:
+                log("Account not found", "WARN")
                 return False
 
             keywords = ["Try another way", "طريقة أخرى", "try another way", "Forgot password"]
@@ -355,140 +278,6 @@ class FacebookOTPBrowser:
                     log(f"Clicked: {kw}", "OK")
                     break
                 except: continue
-
-            # 4. Selection - IMPROVED with phone number matching
-            self.driver.execute_script("window.stop();")
-            self._save_step_screenshot("3_selection")
-            
-            # Get last 2 digits for matching
-            phone_last_2 = phone[-2:] if phone else ""
-            log(f"Phone last 2 digits: {phone_last_2}", "INFO")
-            
-            sms_found = False
-            best_match_radio = None
-            
-            # Check Radios with phone matching
-            radios = self.driver.find_elements(By.CSS_SELECTOR, "input[type='radio']")
-            for r in radios:
-                try:
-                    parent = r.find_element(By.XPATH, "./..")
-                    grandparent = parent.find_element(By.XPATH, "./..")
-                    full_text = f"{parent.text.lower()} {grandparent.text.lower()}"
-                    
-                    is_sms = "sms" in full_text or "send code via sms" in full_text
-                    matches_phone = phone_last_2 and phone_last_2 in full_text
-                    
-                    if is_sms and matches_phone:
-                        self.driver.execute_script("arguments[0].click();", r)
-                        sms_found = True
-                        log(f"✅ SMS option matching phone {phone_last_2} selected", "OK")
-                        break
-                    elif is_sms and not best_match_radio:
-                        best_match_radio = r
-                except: pass
-            
-            # Use fallback SMS if no exact match
-            if not sms_found and best_match_radio:
-                self.driver.execute_script("arguments[0].click();", best_match_radio)
-                sms_found = True
-                log("SMS radio selected (fallback)", "OK")
-            
-            if not sms_found: # Fallback text click
-                clickable = self.driver.find_elements(By.CSS_SELECTOR, "div[role='button'], span, label, a")
-                for el in clickable:
-                    el_text = el.text.lower()
-                    if ("sms" in el_text or "send code via sms" in el_text) and (phone_last_2 in el_text or not phone_last_2):
-                        try:
-                            el.click()
-                            sms_found = True
-                            log("SMS text selected", "OK")
-                            break
-                        except: continue
-            
-            if not sms_found:
-                log("❌ SMS Option NOT FOUND", "ERROR")
-                return False
-
-            # Submit Selection
-            time.sleep(1)
-            btns = self.driver.find_elements(By.CSS_SELECTOR, "button[type='submit'], input[type='submit']")
-            for btn in btns:
-                if any(x in btn.text.lower() for x in ["continue", "send", "متابعة", "إرسال"]):
-                    btn.click()
-                    time.sleep(2)
-                    self.driver.execute_script("window.stop();")
-                    log("🛑 Force Stopped Final", "OK")
-                    break
-
-            # 5. Result
-            current_url = self.driver.current_url
-            if "recover/code" in current_url or "enter code" in self.driver.page_source.lower():
-                log("🎉 SUCCESS: OTP SENT!", "SUCCESS")
-                log(f"📱 URL: {current_url}")
-                
-                # Snapshot and Cookie placeholder for Appwrite
-                shot = self._save_step_screenshot("success")
-                cookies = self.driver.get_cookies()
-                # Telegram removed as per request
-                return True
-            else:
-                log("Failed to verify OTP sent", "ERROR")
-                self._save_step_screenshot("fail_verify")
-                return False
-
-        except Exception as e:
-            log(f"Flow Error: {e}", "ERROR")
-            if self.driver:
-                try: self.driver.quit()
-                except: pass
-            return False
-        # Note: driver.quit() is NOT called on success - main_worker handles it
-
-    def run_flow_reuse(self, phone):
-        """Run flow using existing browser instance (for speed optimization)"""
-        self.current_phone = phone
-        log(f"🚀 Processing (reuse): {phone}")
-        
-        if not self.driver:
-            log("No driver available for reuse!", "ERROR")
-            return False
-        
-        try:
-            # Navigate to start URL (browser already exists)
-            self.driver.get('https://mbasic.facebook.com/login/identify/?ctx=recover')
-            self.wait_for_ready(3)
-            self.driver.execute_script("window.stop();")
-            log("🛑 Force Stopped Home Page", "OK")
-
-            # 2. Search - use DOM injection for speed
-            inp = WebDriverWait(self.driver, 8).until(EC.presence_of_element_located((By.NAME, "email")))
-            self.driver.execute_script("arguments[0].value = arguments[1];", inp, phone)
-            btn = self.driver.find_element(By.CSS_SELECTOR, "input[type='submit'], button[type='submit']")
-            self.driver.execute_script("arguments[0].click();", btn)
-            self.wait_for_ready(3)
-            self.driver.execute_script("window.stop();")
-            log("🛑 Force Stopped Post-Search", "OK")
-
-            # 3. Handle intermediate pages ("Try another way")
-            keywords = ["try another", "another way", "طريقة أخرى"]
-            for _ in range(3):
-                page_src = self.driver.page_source.lower()
-                found = False
-                for kw in keywords:
-                    if kw in page_src:
-                        try:
-                            btns = self.driver.find_elements(By.CSS_SELECTOR, "a, button")
-                            for btn in btns:
-                                if kw.split()[0] in btn.text.lower():
-                                    btn.click()
-                                    time.sleep(1.5)
-                                    self.driver.execute_script("window.stop();")
-                                    log(f"Clicked: {kw}", "OK")
-                                    found = True
-                                    break
-                        except: continue
-                    if found: break
-                if not found: break
 
             # 4. Selection
             self.driver.execute_script("window.stop();")
@@ -524,22 +313,24 @@ class FacebookOTPBrowser:
             # Submit Selection
             time.sleep(1)
             btns = self.driver.find_elements(By.CSS_SELECTOR, "button[type='submit'], input[type='submit']")
-            for b in btns:
-                try:
-                    self.driver.execute_script("arguments[0].click();", b)
-                    log("Clicked submit", "OK")
+            for btn in btns:
+                if any(x in btn.text.lower() for x in ["continue", "send", "متابعة", "إرسال"]):
+                    btn.click()
+                    time.sleep(2)
+                    self.driver.execute_script("window.stop();")
+                    log("🛑 Force Stopped Final", "OK")
                     break
-                except: continue
-            
-            time.sleep(2)
-            self.driver.execute_script("window.stop();")
 
-            # 5. Verify Success
+            # 5. Result
             current_url = self.driver.current_url
             if "recover/code" in current_url or "enter code" in self.driver.page_source.lower():
                 log("🎉 SUCCESS: OTP SENT!", "SUCCESS")
                 log(f"📱 URL: {current_url}")
-                self._save_step_screenshot("success")
+                
+                # Snapshot and Cookie placeholder for Appwrite
+                shot = self._save_step_screenshot("success")
+                cookies = self.driver.get_cookies()
+                if shot: self.send_telegram_photo(f"✅ OTP SENT!\nPhone: {phone}\nURL: {current_url}", shot)
                 return True
             else:
                 log("Failed to verify OTP sent", "ERROR")
@@ -547,9 +338,10 @@ class FacebookOTPBrowser:
                 return False
 
         except Exception as e:
-            log(f"Flow Reuse Error: {e}", "ERROR")
-            # Don't quit driver - let main_worker decide
+            log(f"Flow Error: {e}", "ERROR")
             return False
+        finally:
+            if self.driver: self.driver.quit()
 
 def main():
     target = sys.argv[1] if len(sys.argv) > 1 else None
