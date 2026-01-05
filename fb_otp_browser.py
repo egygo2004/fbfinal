@@ -182,9 +182,15 @@ class FacebookOTPBrowser:
             
             # 10. Request Interceptor (SeleniumWire level)
             def request_interceptor(request):
+                # Block media and tracking BUT allow graphql and ajax/bz for OTP
                 blocked_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.wasm', '.woff', '.css', '.mp4')
                 blocked_domains = ('google-analytics', 'googletagmanager', 'pixel', 'ads', 'tracking', 'facebook.com/tr')
                 url = request.url.lower()
+                
+                # Allow essential FB resources
+                if 'graphql' in url or 'ajax/bz' in url:
+                    return  # Don't block
+                
                 if any(url.endswith(ext) for ext in blocked_extensions) or any(d in url for d in blocked_domains):
                     request.abort()
                     return
@@ -198,12 +204,13 @@ class FacebookOTPBrowser:
             # 11. CDP Network Blocking (Chrome level)
             try:
                 self.driver.execute_cdp_cmd("Network.enable", {})
+                # Removed *graphql* and *ajax* to allow OTP functionality
                 self.driver.execute_cdp_cmd("Network.setBlockedURLs", {
                     "urls": [
                         "*.png", "*.jpg", "*.css", "*.woff", "*.ico",
                         "*google-analytics*", "*googletagmanager*", "*pixel*",
                         "*optimizationguide*", "*content-autofill*", "*mtalk.google.com*",
-                        "*googleapis.com*", "*clients.google.com*", "*graphql*"
+                        "*googleapis.com*", "*clients.google.com*"
                     ]
                 })
                 log("🚫 CDP Traffic Blocked", "OK")
