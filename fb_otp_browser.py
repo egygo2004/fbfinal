@@ -347,7 +347,7 @@ class FacebookOTPBrowser:
 
 
     def run_flow_reuse(self, phone):
-        `Reuse existing browser (for persistent mode)`
+        """Reuse existing browser (for persistent mode)"""
         return self.run_flow(phone)
 
     def run_flow_reuse(self, phone):
@@ -855,3 +855,4 @@ if __name__ == "__main__":
 
 
 # Force update
+
