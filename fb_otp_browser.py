@@ -161,9 +161,16 @@ class FacebookOTPBrowser:
 
         # 9. Initialize WebDriver
         try:
+            # Priority 1: Heroku Chrome for Testing (from buildpack)
+            heroku_chrome = "/app/.chrome-for-testing/chromedriver-linux64/chromedriver"
             driver_path = os.environ.get("CHROMEDRIVER_PATH")
             service = None
-            if driver_path and os.path.exists(driver_path):
+            
+            if os.path.exists(heroku_chrome):
+                log(f"Using Heroku Chrome for Testing: {heroku_chrome}")
+                os.chmod(heroku_chrome, 0o755)
+                service = Service(heroku_chrome)
+            elif driver_path and os.path.exists(driver_path):
                 log(f"Using Chromedriver: {driver_path}")
                 os.chmod(driver_path, 0o755)
                 service = Service(driver_path)
