@@ -10,6 +10,7 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchPending, setSearchPending] = useState('');
   const [searchSuccess, setSearchSuccess] = useState('');
+  const [searchFailed, setSearchFailed] = useState('');
   const [showProxyModal, setShowProxyModal] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [newProxy, setNewProxy] = useState({ connection_string: '', platform_username: '', platform_password: '' });
@@ -394,15 +395,25 @@ const App = () => {
 
               {/* MIDDLE: SUCCESS */}
               <div className="bg-gray-900/50 border border-emerald-500/20 rounded-xl flex flex-col overflow-hidden shadow-lg shadow-emerald-500/5">
-                <div className="flex justify-between items-center p-4 border-b border-gray-800">
+                <div className="flex flex-col p-4 border-b border-gray-800 gap-2">
                   <h2 className="font-bold flex items-center gap-2 text-emerald-400 uppercase tracking-wider text-sm">
                     <CheckCircle size={16} /> Success ({successCount})
                   </h2>
+                  <div className="relative">
+                    <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+                    <input
+                      type="text"
+                      placeholder="Search phone..."
+                      value={searchSuccess}
+                      onChange={(e) => setSearchSuccess(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-xs focus:border-emerald-500 outline-none"
+                    />
+                  </div>
                 </div>
                 <div className="overflow-y-auto flex-1 p-3">
                   <div className="space-y-2">
                     {numbers
-                      .filter(n => n.status === 'success')
+                      .filter(n => n.status === 'success' && (!searchSuccess || n.phone?.includes(searchSuccess)))
                       .map(item => (
                         <div
                           key={item.$id}
@@ -437,12 +448,33 @@ const App = () => {
                                 <Smartphone size={10} /> Shot
                               </button>
                             )}
+                            {item.cookies_json && (
+                              <button
+                                className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-xs rounded hover:bg-cyan-500 hover:text-white transition-all flex items-center gap-1"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(item.cookies_json);
+                                  alert('Cookies copied to clipboard!');
+                                }}
+                                title="Copy cookies JSON to clipboard"
+                              >
+                                <Copy size={10} /> Copy
+                              </button>
+                            )}
                             {item.cookie_file_id && (
                               <button
                                 className="px-2 py-1 bg-blue-500/10 text-blue-400 text-xs rounded hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1"
                                 onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${item.cookie_file_id}/download?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
                               >
-                                <Download size={10} /> Cookies
+                                <Download size={10} /> Download
+                              </button>
+                            )}
+                            {item.result_url && (
+                              <button
+                                className="px-2 py-1 bg-purple-500/10 text-purple-400 text-xs rounded hover:bg-purple-500 hover:text-white transition-all flex items-center gap-1"
+                                onClick={() => window.open(item.result_url, '_blank')}
+                                title="Open recovery URL in new tab"
+                              >
+                                <ExternalLink size={10} /> Open URL
                               </button>
                             )}
                             <button
@@ -477,15 +509,25 @@ const App = () => {
 
               {/* RIGHT: FAILED */}
               <div className="bg-gray-900/50 border border-red-500/20 rounded-xl flex flex-col overflow-hidden shadow-lg shadow-red-500/5">
-                <div className="flex justify-between items-center p-4 border-b border-gray-800">
+                <div className="flex flex-col p-4 border-b border-gray-800 gap-2">
                   <h2 className="font-bold flex items-center gap-2 text-red-400 uppercase tracking-wider text-sm">
                     <XCircle size={16} /> Failed ({failedCount})
                   </h2>
+                  <div className="relative">
+                    <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+                    <input
+                      type="text"
+                      placeholder="Search phone..."
+                      value={searchFailed}
+                      onChange={(e) => setSearchFailed(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-xs focus:border-red-500 outline-none"
+                    />
+                  </div>
                 </div>
                 <div className="overflow-y-auto flex-1 p-3">
                   <div className="space-y-2">
                     {numbers
-                      .filter(n => n.status === 'failed')
+                      .filter(n => n.status === 'failed' && (!searchFailed || n.phone?.includes(searchFailed)))
                       .map(item => (
                         <div
                           key={item.$id}

@@ -94,7 +94,7 @@ def log(msg, level="INFO"):
     c = colors.get(level, "")
     print(f"{C.CYAN}[{t}]{C.END} {c}[{level}] {msg}{C.END}", flush=True)
 
-class FacebookOTPBrowserLocal:
+class FacebookOTPBrowser:
     # Decodo US Proxy Configuration
     PROXY_CONFIG = {
         'host': 'us.decodo.com',
@@ -170,26 +170,22 @@ class FacebookOTPBrowserLocal:
         log("🚀 Page load strategy: NONE (ultra-fast)", "OK")
 
         # SOAX Proxy Configuration (USA)
-        # PROXY ENABLED - Testing with proxy
-        proxy = self.PROXY_CONFIG
-        # Handle proxy with or without authentication
-        if proxy['username'] and proxy['password']:
-            proxy_url = f"http://{proxy['username']}:{proxy['password']}@{proxy['host']}:{proxy['port']}"
-        else:
-            proxy_url = f"http://{proxy['host']}:{proxy['port']}"
+        # PROXY DISABLED - Local testing
+        # proxy = self.PROXY_CONFIG
+        # proxy_url = f"http://{proxy['username']}:{proxy['password']}@{proxy['host']}:{proxy['port']}"
         
         seleniumwire_options = {
-            'proxy': {
-                'http': proxy_url,
-                'https': proxy_url,
-                'no_proxy': 'localhost,127.0.0.1'
-            },
+            # 'proxy': {
+            #     'http': proxy_url,
+            #     'https': proxy_url,
+            #     'no_proxy': 'localhost,127.0.0.1'
+            # },
             'verify_ssl': False,
             'connection_timeout': 60,
             'request_timeout': 60
         }
         
-        log(f"🌐 PROXY ENABLED - {proxy['host']}:{proxy['port']}", "OK")
+        log(f"🌐 NO PROXY - Direct local connection", "OK")
 
         try:
             if ChromeDriverManager:
@@ -349,6 +345,10 @@ class FacebookOTPBrowserLocal:
                 time.sleep(1)
         except: pass
 
+
+    def run_flow_reuse(self, phone):
+        `Reuse existing browser (for persistent mode)`
+        return self.run_flow(phone)
     def run_flow(self, phone):
         self.current_phone = phone
         log(f"Starting OTP flow for {phone} (DATA SAVER MODE)")
@@ -834,7 +834,7 @@ def main():
 
         try:
             # Run OTP flow with proxy
-            bot = FacebookOTPBrowserLocal(headless=headless)
+            bot = FacebookOTPBrowser(headless=headless)
             bot.run_flow(phone)
         except Exception as e:
             log(f"Error processing {phone}: {e}", "ERROR")
@@ -846,4 +846,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
