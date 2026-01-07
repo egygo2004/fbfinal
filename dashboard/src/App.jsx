@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Settings, RefreshCw, Smartphone, CheckCircle, XCircle, Search, Copy, Download, ExternalLink, Clock, Zap, Shield, Trash2, X, Eye } from 'lucide-react';
-import { databases, QUEUE_COLL_ID, DB_ID, PROXIES_COLL_ID, ASSETS_BUCKET_ID } from './appwrite';
+import { Plus, Settings, RefreshCw, Smartphone, CheckCircle, XCircle, Search, Copy, Download, ExternalLink, Clock, Zap, Shield, Trash2, X, Eye, LogOut } from 'lucide-react';
+import { databases, account, QUEUE_COLL_ID, DB_ID, PROXIES_COLL_ID, ASSETS_BUCKET_ID } from './appwrite';
 import { ID, Query } from 'appwrite';
+import Login from './Login';
 
 const App = () => {
+  const [user, setUser] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [numbers, setNumbers] = useState([]);
   const [proxies, setProxies] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -15,6 +18,43 @@ const App = () => {
   const [inputValue, setInputValue] = useState('');
   const [newProxy, setNewProxy] = useState({ connection_string: '', platform_username: '', platform_password: '' });
   const [selectedItem, setSelectedItem] = useState(null); // For logs modal
+
+  // Check if user is logged in
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const currentUser = await account.get();
+        setUser(currentUser);
+      } catch (err) {
+        setUser(null);
+      }
+      setCheckingAuth(false);
+    };
+    checkAuth();
+  }, []);
+
+  // Logout function
+  const handleLogout = async () => {
+    try {
+      await account.deleteSession('current');
+      setUser(null);
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
+
+  // Show login if not authenticated
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onLogin={setUser} />;
+  }
 
   // Fetch numbers from Appwrite
   const fetchNumbers = async () => {
@@ -267,6 +307,13 @@ const App = () => {
             >
               <Settings size={18} /> Proxies
             </button>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-all text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              title={`Logged in as ${user?.email}`}
+            >
+              <LogOut size={18} />
+            </button>
           </nav>
         </header>
 
@@ -451,10 +498,7 @@ const App = () => {
                             {item.cookies_json && (
                               <button
                                 className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-xs rounded hover:bg-cyan-500 hover:text-white transition-all flex items-center gap-1"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(item.cookies_json);
-                                  alert('Cookies copied to clipboard!');
-                                }}
+                                onClick={() => navigator.clipboard.writeText(item.cookies_json)}
                                 title="Copy cookies JSON to clipboard"
                               >
                                 <Copy size={10} /> Copy
