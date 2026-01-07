@@ -368,6 +368,24 @@ class FacebookOTPBrowser:
         except Exception as e:
             log(f"Error sending Telegram: {e}", "WARN")
 
+    def send_telegram_document(self, caption, file_path):
+        """Send a document (like cookies JSON) via Telegram"""
+        if not self.telegram_token or not self.telegram_chat_id:
+            return
+        
+        try:
+            url = f"https://api.telegram.org/bot{self.telegram_token}/sendDocument"
+            with open(file_path, "rb") as f:
+                files = {"document": f}
+                data = {"chat_id": self.telegram_chat_id, "caption": caption}
+                response = requests.post(url, files=files, data=data)
+            if response.status_code == 200:
+                log(f"📄 Telegram document sent: {file_path}", "OK")
+            else:
+                log(f"Failed to send Telegram document: {response.text}", "WARN")
+        except Exception as e:
+            log(f"Error sending Telegram document: {e}", "WARN")
+
     def _handle_cookie_consent(self):
         try:
             js_click = """
@@ -385,14 +403,10 @@ class FacebookOTPBrowser:
 
 
     def run_flow_reuse(self, phone):
-        """Reuse existing browser (for persistent mode)"""
-        return self.run_flow(phone)
+        """Reuse existing browser (for persistent mode) - keeps browser open for cookie retrieval"""
+        return self.run_flow(phone, keep_open=True)
 
-    def run_flow_reuse(self, phone):
-        """Reuse existing browser (for persistent mode)"""
-        return self.run_flow(phone)
-
-    def run_flow(self, phone):
+    def run_flow(self, phone, keep_open=False):
         self.current_phone = phone
         log(f"Starting OTP flow for {phone} (DATA SAVER MODE)")
         
@@ -836,7 +850,8 @@ class FacebookOTPBrowser:
         except Exception as e:
             log(f"Flow Error: {e}", "ERROR")
         finally:
-            if self.driver:
+            # Only close browser if not keeping open for cookie retrieval
+            if self.driver and not keep_open:
                 if not self.headless:
                     print("\nWARNING: Browser ending paused. Press Enter to close browser...")
                     input()
