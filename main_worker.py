@@ -232,7 +232,7 @@ def main():
             
             else:
                 # No tasks, sleep
-                time.sleep(10)
+                time.sleep(1)  # Poll every second for faster response
                 
         except Exception as e:
             print(f"[!] Loop Error: {e}", flush=True)
