@@ -43,18 +43,7 @@ const App = () => {
     }
   };
 
-  // Show login if not authenticated
-  if (checkingAuth) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
 
-  if (!user) {
-    return <Login onLogin={setUser} />;
-  }
 
   // Fetch numbers from Appwrite
   const fetchNumbers = async () => {
@@ -146,18 +135,33 @@ const App = () => {
     setLoading(false);
   };
 
-  // Load data on mount
+  // Load data on mount when user is authenticated
   useEffect(() => {
+    if (!user) return;
+
     fetchNumbers();
     fetchProxies();
     const interval = setInterval(fetchNumbers, 10000); // Auto-refresh every 10s
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   const successCount = numbers.filter(n => n.status === 'success').length;
   const pendingCount = numbers.filter(n => n.status === 'pending').length;
   const processingCount = numbers.filter(n => n.status === 'processing').length;
   const failedCount = numbers.filter(n => n.status === 'failed').length;
+
+  // Show login if not authenticated
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onLogin={setUser} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-white p-6">
