@@ -30,19 +30,21 @@ class AppwriteWorkerClient:
         self.bucket_id = "finafb"
 
     def get_pending_number(self):
-        """Fetch one pending number from the queue"""
+        """Fetch one random pending number from the top 30 queue to avoid collisions"""
         try:
+            import random
             result = self.databases.list_documents(
                 self.db_id,
                 self.queue_id,
                 [
                     Query.equal("status", "pending"),
                     Query.order_asc("created_at"),
-                    Query.limit(1)
+                    Query.limit(30) # Fetch batch to allow random selection
                 ]
             )
             if result['total'] > 0:
-                return result['documents'][0]
+                # Pick a random document to reduce race conditions between 10 workers
+                return random.choice(result['documents'])
         except Exception as e:
             print(f"[Appwrite] Error fetching pending: {e}")
         return None
