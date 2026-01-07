@@ -154,7 +154,6 @@ def main():
                             
                             try:
                                 # Retry mechanism for cookies (selenium-wire sometimes has connection issues)
-                                import time
                                 cookies = None
                                 result_url = None
                                 for attempt in range(3):
