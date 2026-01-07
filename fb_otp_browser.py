@@ -413,18 +413,8 @@ class FacebookOTPBrowser:
         if not self._setup_driver():
             return False
         
-        # IP Check
         try:
-            log("🌍 Checking IP address...", "INFO")
-            self.driver.get('https://api.ipify.org?format=json')
-            time.sleep(2)
-            ip_text = self.driver.find_element(By.TAG_NAME, "body").text
-            log(f"✅ Current IP: {ip_text}", "SUCCESS")
-            self._save_step_screenshot("ip_check")
-        except Exception as e:
-            log(f"⚠️ Could not verify IP: {e}", "WARN")
-
-        try:
+            # 1. Open mbasic Facebook (IP check removed to save time)
             # 1. Open mbasic Facebook
             recovery_url = 'https://mbasic.facebook.com/login/identify/?ctx=recover'
             log(f"Opening: {recovery_url}", "INFO")
@@ -432,84 +422,63 @@ class FacebookOTPBrowser:
             # mbasic is lightweight, can force stop early
             self.driver.execute_script("window.stop();")
             log("⏳ Waiting for mbasic to load...", "INFO")
-            time.sleep(3)
+            time.sleep(1.5)  # Reduced from 3
 
             # 2. Enter Phone
-            try:
-                # Save screenshot: Step 1 - Page opened
-                self._save_step_screenshot("1_page_opened")
-                
-                # mbasic uses different element structure
-                inp = None
-                # Try different selectors for mbasic
-                for selector in ["input[name='email']", "#identify_email", "input[type='text']"]:
-                    try:
-                        inp = WebDriverWait(self.driver, 10).until(
-                            EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-                        )
-                        if inp:
-                            break
-                    except:
-                        continue
-                
-                if not inp:
-                    self._save_step_screenshot("error_no_input")
-                    log("Could not find phone input field", "ERROR")
-                    return False
-                    
-                inp.clear()
-                inp.send_keys(phone)
-                log("Phone entered, submitting...", "INFO")
-                
-                # Save screenshot: Step 2 - Phone entered
-                self._save_step_screenshot("2_phone_entered")
-                
-                # Find and click submit button
+            # mbasic uses different element structure
+            inp = None
+            # Try different selectors for mbasic
+            for selector in ["input[name='email']", "#identify_email", "input[type='text']"]:
                 try:
-                    submit_btn = self.driver.find_element(By.CSS_SELECTOR, "input[type='submit'], button[type='submit']")
-                    submit_btn.click()
-                    # Short sleep then stop
-                    time.sleep(1.5)
-                    self.driver.execute_script("window.stop();")
-                    log("🛑 Force stopped after submit", "OK")
+                    inp = WebDriverWait(self.driver, 10).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                    )
+                    if inp:
+                        break
                 except:
-                    inp.send_keys(Keys.ENTER)
-                    time.sleep(1.5)
-                    self.driver.execute_script("window.stop();")
-                
-                # Quick early check for "not found" - FAST PATH
-                time.sleep(1)
-                quick_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
-                if "doesn't match" in quick_text or "try again or create" in quick_text or "no search results" in quick_text:
-                    self._save_step_screenshot("not_found_early")
-                    log("⚡ Account NOT FOUND (early detection)", "WARN")
-                    return False
-                
-                # Wait for page to load after search
-                time.sleep(2)
-                
-                # Save screenshot: Step 3 - After search
-                self._save_step_screenshot("3_after_search")
-                
-                log("Search completed, processing results...", "INFO")
-                
-            except Exception as e:
-                self._save_step_screenshot("error_phone_entry")
-                log(f"Could not find phone input field: {e}", "ERROR")
+                    continue
+            
+            if not inp:
+                self._save_step_screenshot("error_no_input")
+                log("Could not find phone input field", "ERROR")
                 return False
+                
+            inp.clear()
+            inp.send_keys(phone)
+            log("Phone entered, submitting...", "INFO")
+            
+            # Find and click submit button
+            try:
+                submit_btn = self.driver.find_element(By.CSS_SELECTOR, "input[type='submit'], button[type='submit']")
+                submit_btn.click()
+                # Short sleep then stop
+                time.sleep(1)  # Reduced from 1.5
+                self.driver.execute_script("window.stop();")
+                log("🛑 Force stopped after submit", "OK")
+            except:
+                inp.send_keys(Keys.ENTER)
+                time.sleep(1)  # Reduced from 1.5
+                self.driver.execute_script("window.stop();")
+            
+            # Quick early check for "not found" - FAST PATH
+            time.sleep(0.5)  # Reduced from 1
+            quick_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
+            if "doesn't match" in quick_text or "try again or create" in quick_text or "no search results" in quick_text:
+                log("⚡ Account NOT FOUND (early detection)", "WARN")
+                return False
+            
+            # Wait for page to load after search
+            time.sleep(1)  # Reduced from 2
+            
+            log("Search completed, processing results...", "INFO")
 
             # 3. Handle Results
-            time.sleep(1)  # Reduced from 2
             url = self.driver.current_url
             page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
             
             log(f"Current URL: {url}", "INFO")
-            
-            # Save screenshot: Step 4 - Results page
-            self._save_step_screenshot("4_results_page")
 
             if "no search results" in page_text or "لم يتم العثور" in page_text or "doesn't match an account" in page_text or "try again or create" in page_text:
-                self._save_step_screenshot("not_found")
                 log("❌ Account NOT FOUND for this number", "WARN")
                 return False
 
@@ -517,7 +486,6 @@ class FacebookOTPBrowser:
             # This page has text like "closely matches" and a blue button
             if "is this your account" in page_text or "هل هذا حسابك" in page_text or "closely matches" in page_text or "found one that" in page_text:
                 log("🔍 'Is this your account?' page detected", "INFO")
-                self._save_step_screenshot("is_this_your_account")
                 clicked = False
                 try:
                     # Method 1: Look for blue submit button (most reliable)
@@ -543,20 +511,18 @@ class FacebookOTPBrowser:
                                 break
                     
                     if clicked:
-                        time.sleep(2)
+                        time.sleep(1.5)  # Reduced from 2
                         self.driver.execute_script("window.stop();")
-                        self._save_step_screenshot("after_yes_continue")
                 except Exception as e:
                     log(f"Could not click Yes Continue: {e}", "WARN")
                 
                 # Refresh page text after click
-                time.sleep(1)
+                time.sleep(0.5)  # Reduced from 1
                 page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
 
             # Handle "Choose Your Account" page - select account matching our phone number
             if "choose your account" in page_text or "اختر حسابك" in page_text:
                 log("🔍 Multiple accounts found - looking for matching phone...", "INFO")
-                self._save_step_screenshot("choose_account_page")
                 
                 # Get last 2 digits to match
                 phone_last_2 = self.current_phone[-2:] if self.current_phone else ""
@@ -587,9 +553,8 @@ class FacebookOTPBrowser:
                     if selected_link:
                         selected_link.click()
                         log(f"✅ Selected account: {selected_link.text.strip()}", "OK")
-                        time.sleep(2)
+                        time.sleep(1.5)  # Reduced from 2
                         self.driver.execute_script("window.stop();")
-                        self._save_step_screenshot("after_account_selection")
                     else:
                         log("No phone account found to select", "WARN")
                         
@@ -597,13 +562,11 @@ class FacebookOTPBrowser:
                     log(f"Could not select account: {e}", "WARN")
                 
                 # Wait and refresh page text after selection
-                time.sleep(2)
+                time.sleep(1)  # Reduced from 2
                 page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
                 
-                # Handle "Is this your account?" page AFTER choosing account - click "Yes, Continue"
                 if "is this your account" in page_text or "هل هذا حسابك" in page_text or "closely matches" in page_text or "found one that" in page_text:
                     log("🔍 'Is this your account?' page detected (after account selection)", "INFO")
-                    self._save_step_screenshot("is_this_your_account_after_selection")
                     clicked = False
                     try:
                         # Method 1: Look for submit button (blue button)
@@ -629,9 +592,8 @@ class FacebookOTPBrowser:
                                     break
                         
                         if clicked:
-                            time.sleep(2)
+                            time.sleep(1.5)  # Reduced from 2
                             self.driver.execute_script("window.stop();")
-                            self._save_step_screenshot("after_yes_continue")
                             page_text = self.driver.find_element(By.TAG_NAME, "body").text.lower()
                     except Exception as e:
                         log(f"Could not click Yes Continue: {e}", "WARN")
@@ -654,8 +616,7 @@ class FacebookOTPBrowser:
                     btn.click()
                     try_another_clicked = True
                     log(f"Clicked: '{keyword}'", "OK")
-                    time.sleep(3)
-                    self._save_step_screenshot("5_after_try_another")
+                    time.sleep(1.5)  # Reduced from 3
                     break
                 except:
                     continue
@@ -670,8 +631,7 @@ class FacebookOTPBrowser:
                             link.click()
                             try_another_clicked = True
                             log(f"Clicked link with text: '{link.text}'", "OK")
-                            time.sleep(3)
-                            self._save_step_screenshot("5_after_try_another")
+                            time.sleep(1.5)  # Reduced from 3
                             break
                 except:
                     pass
@@ -687,10 +647,6 @@ class FacebookOTPBrowser:
             try:
                 page_source = self.driver.page_source.lower()
                 log(f"Looking for SMS option on recovery page...", "INFO")
-                
-                # Save screenshot for debugging
-                self.driver.save_screenshot("debug_recovery_page.png")
-                log("Debug screenshot saved: debug_recovery_page.png", "INFO")
                 
                 # Get last digits of the phone number for matching (try 2, then 1)
                 phone_last_2 = self.current_phone[-2:] if self.current_phone else ""
@@ -787,11 +743,11 @@ class FacebookOTPBrowser:
                         if "continue" in btn_text or "send" in btn_text or "متابعة" in btn_text or "إرسال" in btn_text:
                             btn.click()
                             log("Clicked Continue/Send button", "OK")
-                            time.sleep(2)
+                            time.sleep(1.5)  # Reduced from 2
                             # Stop immediately after click to prevent loading full next page
                             self.driver.execute_script("window.stop();")
                             log("🛑 Force stopped after Continue click", "OK")
-                            time.sleep(3)
+                            time.sleep(2)  # Reduced from 3
                             break
                 except:
                     # Fallback: try by name
@@ -799,7 +755,7 @@ class FacebookOTPBrowser:
                         btn = self.driver.find_element(By.NAME, "reset_action")
                         btn.click()
                         log("Clicked reset_action button", "OK")
-                        time.sleep(5)
+                        time.sleep(3)  # Reduced from 5
                     except:
                         pass
                 
