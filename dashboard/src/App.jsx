@@ -664,237 +664,236 @@ const App = () => {
               </div>
             </div>
           </main>
-            </div>
-    </main>
-  ) : activeTab === 'settings' ? (
-    /* PROXIES TAB */
-    <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold flex items-center gap-2">
-          <Shield className="text-emerald-500" /> Proxy Pool
-        </h2>
-        <button
-          className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-2.5 rounded-lg transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
-          onClick={() => setShowProxyModal(true)}
-        >
-          <Plus size={18} /> Add Proxy
-        </button>
-      </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-800">
-              <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Connection String</th>
-              <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Platform Creds</th>
-              <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Usage</th>
-              <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Status</th>
-              <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {proxies.map((proxy) => (
-              <tr key={proxy.$id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
-                <td className="py-4 px-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm text-emerald-400 truncate max-w-[250px]">{proxy.connection_string}</span>
-                    <button className="text-gray-500 hover:text-white" onClick={() => navigator.clipboard.writeText(proxy.connection_string)}>
-                      <Copy size={14} />
-                    </button>
-                  </div>
-                </td>
-                <td className="py-4 px-4">
-                  <div className="text-xs text-gray-400">
-                    <div><span className="text-gray-600">U:</span> {proxy.platform_username || '-'}</div>
-                    <div><span className="text-gray-600">P:</span> {proxy.platform_password ? '••••••' : '-'}</div>
-                  </div>
-                </td>
-                <td className="py-4 px-4">
-                  <span className="text-lg font-bold">{proxy.usage_count || 0}</span>
-                  <span className="text-xs text-gray-500 ml-1">runs</span>
-                </td>
-                <td className="py-4 px-4">
-                  <span className={`text-xs px-3 py-1 rounded-full font-bold ${proxy.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {proxy.status?.toUpperCase() || 'UNKNOWN'}
-                  </span>
-                </td>
-                <td className="py-4 px-4">
-                  <div className="flex gap-2">
-                    <button
-                      className="p-2 hover:bg-emerald-500/20 rounded-lg text-emerald-500 transition-all"
-                      title="Reset"
-                      onClick={async () => {
-                        await databases.updateDocument(DB_ID, PROXIES_COLL_ID, proxy.$id, { status: 'active', usage_count: 0 });
-                        fetchProxies();
-                      }}
-                    >
-                      <RefreshCw size={16} />
-                    </button>
-                    <button
-                      className="p-2 hover:bg-red-500/20 rounded-lg text-red-500 transition-all"
-                      onClick={async () => {
-                        if (confirm("Delete proxy?")) {
-                          await databases.deleteDocument(DB_ID, PROXIES_COLL_ID, proxy.$id);
-                          fetchProxies();
-                        }
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {proxies.length === 0 && (
-              <tr>
-                <td colSpan="5" className="text-center py-16 text-gray-500 italic">No proxies in the pool</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  ) : activeTab === 'history' ? (
-    /* HISTORY SEARCH TAB */
-    <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
-          <Search className="text-emerald-500" /> Search History
-        </h2>
-        <p className="text-gray-500 text-sm mb-4">البحث في قاعدة البيانات الكاملة عن أي رقم هاتف</p>
-
-        <div className="flex gap-3">
-          <div className="flex-1 relative">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input
-              type="text"
-              value={historySearch}
-              onChange={(e) => setHistorySearch(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && searchHistory()}
-              placeholder="أدخل رقم الهاتف للبحث... (مثال: +201234567890)"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-12 pr-4 py-3 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all font-mono"
-            />
-          </div>
-          <button
-            onClick={searchHistory}
-            disabled={historyLoading}
-            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-8 py-3 rounded-lg transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
-          >
-            {historyLoading ? <RefreshCw className="animate-spin" size={18} /> : <Search size={18} />}
-            بحث
-          </button>
-        </div>
-      </div>
-
-      {/* Results */}
-      <div className="space-y-3">
-        {historyResults.length > 0 && (
-          <div className="text-sm text-gray-400 mb-4">
-            تم العثور على {historyResults.length} نتيجة
-          </div>
-        )}
-
-        {historyResults.map(item => (
-          <div
-            key={item.$id}
-            className={`p-4 rounded-lg border transition-all ${item.status === 'success' ? 'bg-emerald-500/5 border-emerald-500/20' :
-              item.status === 'failed' ? 'bg-red-500/5 border-red-500/20' :
-                'bg-gray-800/50 border-gray-700'
-              }`}
-          >
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <div className="font-mono text-lg font-bold">{item.phone}</div>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${item.status === 'success' ? 'bg-emerald-500/20 text-emerald-400' :
-                  item.status === 'failed' ? 'bg-red-500/20 text-red-400' :
-                    item.status === 'processing' ? 'bg-yellow-500/20 text-yellow-400' :
-                      'bg-blue-500/20 text-blue-400'
-                  }`}>
-                  {item.status?.toUpperCase()}
-                </span>
-              </div>
-              <span className="text-xs text-gray-500">
-                {item.created_at ? new Date(item.created_at).toLocaleString('ar-EG') : ''}
-              </span>
-            </div>
-
-            {item.error_reason && (
-              <div className="bg-red-500/10 text-red-400 px-3 py-2 rounded text-sm font-mono mb-3">
-                ❌ {item.error_reason}
-              </div>
-            )}
-
-            {item.result_url && (
-              <div className="flex items-center gap-2 bg-black/30 p-2 rounded mb-3 border border-emerald-500/10">
-                <ExternalLink size={14} className="text-emerald-500 flex-shrink-0" />
-                <span className="truncate text-sm text-gray-400 flex-1 font-mono">{item.result_url}</span>
-                <button className="text-emerald-500 hover:text-white" onClick={() => navigator.clipboard.writeText(item.result_url)}>
-                  <Copy size={14} />
-                </button>
-                <button className="text-purple-400 hover:text-white" onClick={() => window.open(item.result_url, '_blank')}>
-                  <ExternalLink size={14} />
-                </button>
-              </div>
-            )}
-
-            <div className="flex gap-2 flex-wrap">
-              {item.cookies_json && (
-                <button
-                  className="px-3 py-1.5 bg-cyan-500/10 text-cyan-400 text-sm rounded hover:bg-cyan-500 hover:text-white transition-all flex items-center gap-1"
-                  onClick={() => navigator.clipboard.writeText(item.cookies_json)}
-                >
-                  <Copy size={12} /> Copy Cookies
-                </button>
-              )}
-              {item.screenshot_id && (
-                <button
-                  className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 text-sm rounded hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1"
-                  onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${item.screenshot_id}/view?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
-                >
-                  <Eye size={12} /> Screenshot
-                </button>
-              )}
-              {item.cookie_file_id && (
-                <button
-                  className="px-3 py-1.5 bg-blue-500/10 text-blue-400 text-sm rounded hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1"
-                  onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${item.cookie_file_id}/download?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
-                >
-                  <Download size={12} /> Download Cookies
-                </button>
-              )}
+        ) : activeTab === 'settings' ? (
+          /* PROXIES TAB */
+          <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Shield className="text-emerald-500" /> Proxy Pool
+              </h2>
               <button
-                className="px-3 py-1.5 bg-blue-500/10 text-blue-400 text-sm rounded hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1"
-                onClick={() => setSelectedItem(item)}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-2.5 rounded-lg transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+                onClick={() => setShowProxyModal(true)}
               >
-                <Eye size={12} /> View Logs
+                <Plus size={18} /> Add Proxy
               </button>
             </div>
 
-            {item.logs && (
-              <details className="mt-3">
-                <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-300">📋 عرض اللوجات</summary>
-                <pre className="bg-gray-950 p-3 rounded text-xs overflow-auto max-h-40 mt-2 text-gray-300 font-mono whitespace-pre-wrap">
-                  {item.logs}
-                </pre>
-              </details>
-            )}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Connection String</th>
+                    <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Platform Creds</th>
+                    <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Usage</th>
+                    <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Status</th>
+                    <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {proxies.map((proxy) => (
+                    <tr key={proxy.$id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm text-emerald-400 truncate max-w-[250px]">{proxy.connection_string}</span>
+                          <button className="text-gray-500 hover:text-white" onClick={() => navigator.clipboard.writeText(proxy.connection_string)}>
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="text-xs text-gray-400">
+                          <div><span className="text-gray-600">U:</span> {proxy.platform_username || '-'}</div>
+                          <div><span className="text-gray-600">P:</span> {proxy.platform_password ? '••••••' : '-'}</div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className="text-lg font-bold">{proxy.usage_count || 0}</span>
+                        <span className="text-xs text-gray-500 ml-1">runs</span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`text-xs px-3 py-1 rounded-full font-bold ${proxy.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {proxy.status?.toUpperCase() || 'UNKNOWN'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex gap-2">
+                          <button
+                            className="p-2 hover:bg-emerald-500/20 rounded-lg text-emerald-500 transition-all"
+                            title="Reset"
+                            onClick={async () => {
+                              await databases.updateDocument(DB_ID, PROXIES_COLL_ID, proxy.$id, { status: 'active', usage_count: 0 });
+                              fetchProxies();
+                            }}
+                          >
+                            <RefreshCw size={16} />
+                          </button>
+                          <button
+                            className="p-2 hover:bg-red-500/20 rounded-lg text-red-500 transition-all"
+                            onClick={async () => {
+                              if (confirm("Delete proxy?")) {
+                                await databases.deleteDocument(DB_ID, PROXIES_COLL_ID, proxy.$id);
+                                fetchProxies();
+                              }
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {proxies.length === 0 && (
+                    <tr>
+                      <td colSpan="5" className="text-center py-16 text-gray-500 italic">No proxies in the pool</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        ))}
+        ) : activeTab === 'history' ? (
+          /* HISTORY SEARCH TAB */
+          <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
+                <Search className="text-emerald-500" /> Search History
+              </h2>
+              <p className="text-gray-500 text-sm mb-4">البحث في قاعدة البيانات الكاملة عن أي رقم هاتف</p>
 
-        {historyResults.length === 0 && historySearch && !historyLoading && (
-          <div className="text-center text-gray-500 py-16 italic">
-            لم يتم العثور على نتائج للرقم "{historySearch}"
+              <div className="flex gap-3">
+                <div className="flex-1 relative">
+                  <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <input
+                    type="text"
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && searchHistory()}
+                    placeholder="أدخل رقم الهاتف للبحث... (مثال: +201234567890)"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-12 pr-4 py-3 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all font-mono"
+                  />
+                </div>
+                <button
+                  onClick={searchHistory}
+                  disabled={historyLoading}
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-8 py-3 rounded-lg transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+                >
+                  {historyLoading ? <RefreshCw className="animate-spin" size={18} /> : <Search size={18} />}
+                  بحث
+                </button>
+              </div>
+            </div>
+
+            {/* Results */}
+            <div className="space-y-3">
+              {historyResults.length > 0 && (
+                <div className="text-sm text-gray-400 mb-4">
+                  تم العثور على {historyResults.length} نتيجة
+                </div>
+              )}
+
+              {historyResults.map(item => (
+                <div
+                  key={item.$id}
+                  className={`p-4 rounded-lg border transition-all ${item.status === 'success' ? 'bg-emerald-500/5 border-emerald-500/20' :
+                    item.status === 'failed' ? 'bg-red-500/5 border-red-500/20' :
+                      'bg-gray-800/50 border-gray-700'
+                    }`}
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <div className="font-mono text-lg font-bold">{item.phone}</div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${item.status === 'success' ? 'bg-emerald-500/20 text-emerald-400' :
+                        item.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                          item.status === 'processing' ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-blue-500/20 text-blue-400'
+                        }`}>
+                        {item.status?.toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-500">
+                      {item.created_at ? new Date(item.created_at).toLocaleString('ar-EG') : ''}
+                    </span>
+                  </div>
+
+                  {item.error_reason && (
+                    <div className="bg-red-500/10 text-red-400 px-3 py-2 rounded text-sm font-mono mb-3">
+                      ❌ {item.error_reason}
+                    </div>
+                  )}
+
+                  {item.result_url && (
+                    <div className="flex items-center gap-2 bg-black/30 p-2 rounded mb-3 border border-emerald-500/10">
+                      <ExternalLink size={14} className="text-emerald-500 flex-shrink-0" />
+                      <span className="truncate text-sm text-gray-400 flex-1 font-mono">{item.result_url}</span>
+                      <button className="text-emerald-500 hover:text-white" onClick={() => navigator.clipboard.writeText(item.result_url)}>
+                        <Copy size={14} />
+                      </button>
+                      <button className="text-purple-400 hover:text-white" onClick={() => window.open(item.result_url, '_blank')}>
+                        <ExternalLink size={14} />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 flex-wrap">
+                    {item.cookies_json && (
+                      <button
+                        className="px-3 py-1.5 bg-cyan-500/10 text-cyan-400 text-sm rounded hover:bg-cyan-500 hover:text-white transition-all flex items-center gap-1"
+                        onClick={() => navigator.clipboard.writeText(item.cookies_json)}
+                      >
+                        <Copy size={12} /> Copy Cookies
+                      </button>
+                    )}
+                    {item.screenshot_id && (
+                      <button
+                        className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 text-sm rounded hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1"
+                        onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${item.screenshot_id}/view?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
+                      >
+                        <Eye size={12} /> Screenshot
+                      </button>
+                    )}
+                    {item.cookie_file_id && (
+                      <button
+                        className="px-3 py-1.5 bg-blue-500/10 text-blue-400 text-sm rounded hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1"
+                        onClick={() => window.open(`${import.meta.env.VITE_APPWRITE_ENDPOINT}/storage/buckets/${ASSETS_BUCKET_ID}/files/${item.cookie_file_id}/download?project=${import.meta.env.VITE_APPWRITE_PROJECT_ID}`)}
+                      >
+                        <Download size={12} /> Download Cookies
+                      </button>
+                    )}
+                    <button
+                      className="px-3 py-1.5 bg-blue-500/10 text-blue-400 text-sm rounded hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1"
+                      onClick={() => setSelectedItem(item)}
+                    >
+                      <Eye size={12} /> View Logs
+                    </button>
+                  </div>
+
+                  {item.logs && (
+                    <details className="mt-3">
+                      <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-300">📋 عرض اللوجات</summary>
+                      <pre className="bg-gray-950 p-3 rounded text-xs overflow-auto max-h-40 mt-2 text-gray-300 font-mono whitespace-pre-wrap">
+                        {item.logs}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              ))}
+
+              {historyResults.length === 0 && historySearch && !historyLoading && (
+                <div className="text-center text-gray-500 py-16 italic">
+                  لم يتم العثور على نتائج للرقم "{historySearch}"
+                </div>
+              )}
+
+              {!historySearch && (
+                <div className="text-center text-gray-600 py-16 italic">
+                  أدخل رقم هاتف للبحث في قاعدة البيانات
+                </div>
+              )}
+            </div>
           </div>
         )}
-
-        {!historySearch && (
-          <div className="text-center text-gray-600 py-16 italic">
-            أدخل رقم هاتف للبحث في قاعدة البيانات
-          </div>
-        )}
-      </div>
-    </div>
-  )}
       </div >
     </div >
   );
