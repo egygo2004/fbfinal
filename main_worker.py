@@ -153,9 +153,23 @@ def main():
                             except: pass
                             
                             try:
-                                cookies = bot.driver.get_cookies()
-                                result_url = bot.driver.current_url
-                                logs.append(log_entry(f"📦 Saved {len(cookies)} cookies"))
+                                # Retry mechanism for cookies (selenium-wire sometimes has connection issues)
+                                import time
+                                cookies = None
+                                result_url = None
+                                for attempt in range(3):
+                                    try:
+                                        time.sleep(0.5)  # Small delay to stabilize connection
+                                        cookies = bot.driver.get_cookies()
+                                        result_url = bot.driver.current_url
+                                        logs.append(log_entry(f"📦 Saved {len(cookies)} cookies"))
+                                        break
+                                    except Exception as retry_err:
+                                        if attempt < 2:
+                                            logs.append(log_entry(f"⚠️ Cookie retry {attempt+1}/3..."))
+                                            time.sleep(1)
+                                        else:
+                                            raise retry_err
                             except Exception as e:
                                 logs.append(log_entry(f"⚠️ Could not get cookies: {str(e)[:50]}"))
                             
