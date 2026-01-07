@@ -71,7 +71,7 @@ const App = () => {
     }
   };
 
-  // Add new phone number(s) to queue - supports multiple numbers
+  // Add new phone number(s) to queue - supports up to 1000 numbers with batching
   const handleAdd = async () => {
     if (!inputValue.trim()) return;
     setLoading(true);
@@ -80,21 +80,51 @@ const App = () => {
       const rawNumbers = inputValue.split(/[\n,\s\t]+/).filter(n => n.trim());
       const uniqueNumbers = [...new Set(rawNumbers.map(n => n.trim()))];
 
+      if (uniqueNumbers.length > 1000) {
+        alert('⚠️ الحد الأقصى 1000 رقم. يرجى تقسيمها لدفعات أصغر.');
+        setLoading(false);
+        return;
+      }
+
       let added = 0;
-      for (const phone of uniqueNumbers) {
-        if (!phone) continue;
-        await databases.createDocument(DB_ID, QUEUE_COLL_ID, ID.unique(), {
-          phone: phone,
-          status: 'pending',
-          created_at: new Date().toISOString()
-        });
-        added++;
+      const batchSize = 20; // Process 20 numbers at a time
+      const delayMs = 300; // 300ms delay between batches
+
+      // Helper function to delay
+      const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+      for (let i = 0; i < uniqueNumbers.length; i += batchSize) {
+        const batch = uniqueNumbers.slice(i, i + batchSize);
+
+        // Process batch in parallel
+        await Promise.all(batch.map(async (phone) => {
+          if (!phone) return;
+          try {
+            await databases.createDocument(DB_ID, QUEUE_COLL_ID, ID.unique(), {
+              phone: phone,
+              status: 'pending',
+              created_at: new Date().toISOString()
+            });
+            added++;
+          } catch (err) {
+            console.error(`Failed to add ${phone}:`, err);
+          }
+        }));
+
+        // Log progress
+        console.log(`Progress: ${Math.min(i + batchSize, uniqueNumbers.length)}/${uniqueNumbers.length}`);
+
+        // Delay between batches to avoid rate limit
+        if (i + batchSize < uniqueNumbers.length) {
+          await delay(delayMs);
+        }
       }
 
       setInputValue('');
       fetchNumbers();
-      if (added > 1) {
-        console.log(`Added ${added} numbers to queue`);
+      if (added > 0) {
+        console.log(`Added ${added}/${uniqueNumbers.length} numbers to queue`);
+        alert(`✅ تم إضافة ${added} رقم بنجاح!`);
       }
     } catch (e) {
       console.error('Error adding number:', e);
