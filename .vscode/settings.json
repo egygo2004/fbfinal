@@ -1,0 +1,11 @@
+{
+  "github.copilot.chat.models": [
+    "claude-sonnet-4-20250514",
+    "claude-3.5-sonnet",
+    "gpt-4o",
+    "gpt-4.1",
+    "o4-mini"
+  ],
+  "github.copilot.selectedModel": "claude-sonnet-4-20250514",
+  "chat.editor.defaultModel": "claude-sonnet-4-20250514"
+}
